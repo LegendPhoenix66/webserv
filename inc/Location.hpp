@@ -20,6 +20,7 @@ public:
 	Location(const Location &copy);
 	Location	operator=(const Location &copy);
 	~Location();
+	void		LocationParse(std::ifstream file);
 };
 
 

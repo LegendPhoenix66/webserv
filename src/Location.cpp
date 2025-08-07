@@ -36,3 +36,8 @@ Location	Location::operator=(const Location &copy)
 Location::~Location()
 {
 }
+
+void	Location::LocationParse(std::ifstream file)
+{
+
+}

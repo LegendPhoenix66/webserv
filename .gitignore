@@ -1,4 +1,7 @@
 cmake-build-debug/
+CMakeLists.txt
+.idea/
+.vscode/
 obj/
 a.out
 webserv
