@@ -5,15 +5,15 @@ Location::Location()
 }
 
 Location::Location(const Location &copy)
-:	path(copy.path),
-	root(copy.root),
-	proxy_pass(copy.proxy_pass),
-	cgi_path(copy.cgi_path),
-	index(copy.index),
-	autoindex(copy.autoindex),
-	allowed_methods(copy.allowed_methods),
-	return_dir(copy.return_dir),
-	upload_store(copy.upload_store)
+: path(copy.path),
+  root(copy.root),
+  cgi_pass(copy.cgi_pass),
+  cgi_path(copy.cgi_path),
+  index(copy.index),
+  autoindex(copy.autoindex),
+  allowed_methods(copy.allowed_methods),
+  return_dir(copy.return_dir),
+  upload_store(copy.upload_store)
 {
 }
 
@@ -40,7 +40,7 @@ Location::Location(std::ifstream &file, std::string line) : autoindex(false)
 		line.erase(0, line.find_first_not_of(" \t\n"));
 		line.erase(line.find_last_not_of(" \t\n") + 1);
 
-		if (line.empty())
+		if (line.empty() || line[0] == '#')
 			continue;
 
 		if (line[0] == '}')
@@ -56,8 +56,8 @@ Location::Location(std::ifstream &file, std::string line) : autoindex(false)
 
 		if (var == "root")
 			iss >> this->root;
-		else if (var == "proxy_pass")
-			iss >> this->proxy_pass;
+		else if (var == "cgi_pass")
+			iss >> this->cgi_pass;
 		else if (var == "cgi_path")
 			iss >> this->cgi_path;
 		else if (var == "index") {
@@ -110,9 +110,9 @@ std::string	Location::getRoot() const
 	return this->root;
 }
 
-std::string	Location::getProxyPass() const
+std::string	Location::getCgiPass() const
 {
-	return this->proxy_pass;
+	return this->cgi_pass;
 }
 
 std::string	Location::getCgiPath() const

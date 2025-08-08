@@ -19,8 +19,8 @@ void	print_conf(const ServerConf &conf)
 		std::cout << "  Path: " << loc.getPath() << std::endl;
 		if (!loc.getRoot().empty())
 			std::cout << "  Root: " << loc.getRoot() << std::endl;
-		if (!loc.getProxyPass().empty())
-			std::cout << "  Proxy Pass: " << loc.getProxyPass() << std::endl;
+		if (!loc.getCgiPass().empty())
+			std::cout << "  CGI Pass: " << loc.getCgiPass() << std::endl;
 		if (!loc.getCgiPath().empty())
 			std::cout << "  CGI Path: " << loc.getCgiPath() << std::endl;
 		std::cout << "  Autoindex: " << (loc.getAutoindex() ? "on" : "off") << std::endl;
@@ -36,7 +36,17 @@ void	print_conf(const ServerConf &conf)
 				std::cout << loc.getAllowedMethods()[j] << " ";
 			std::cout << std::endl;
 		}
-		if (loc.getReturnDir().first != 0 || !loc.getReturnDir().second.empty())
+		std::cout << "  Return Directory: ";
+		if (loc.getReturnDir().first != 0)
+			std::cout << loc.getReturnDir().first << " ";
+		if (!loc.getReturnDir().second.empty())
+			std::cout << loc.getReturnDir().second;
+		std::cout << std::endl;
+		if (loc.getReturnDir().second.empty() && loc.getReturnDir().first != 0)
+			std::cout << "  Return Directory: " << loc.getReturnDir().first << std::endl;
+		else if (loc.getReturnDir().first == 0 && !loc.getReturnDir().second.empty())
+			std::cout << "  Return Directory: " << loc.getReturnDir().second << std::endl;
+		else if (loc.getReturnDir().first != 0 && !loc.getReturnDir().second.empty())
 			std::cout << "  Return Directory: " << loc.getReturnDir().first << " " << loc.getReturnDir().second << std::endl;
 		if (!loc.getUploadStore().empty())
 			std::cout << "  Upload Store: " << loc.getUploadStore() << std::endl;

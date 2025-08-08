@@ -8,7 +8,7 @@ class Location
 private:
 	std::string					path;
 	std::string					root;
-	std::string					proxy_pass;
+	std::string					cgi_pass;
 	std::string					cgi_path;
 	std::vector<std::string>	index;
 	bool						autoindex;
@@ -23,7 +23,7 @@ public:
 	~Location();
 	std::string					getPath() const;
 	std::string					getRoot() const;
-	std::string					getProxyPass() const;
+	std::string					getCgiPass() const;
 	std::string					getCgiPath() const;
 	std::vector<std::string>	getIndex() const;
 	bool						getAutoindex() const;

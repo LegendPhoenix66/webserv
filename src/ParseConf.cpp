@@ -31,7 +31,7 @@ ParseConf::ParseConf(char *file)
 		line.erase(0, line.find_first_not_of(" \t\n"));
 		line.erase(line.find_last_not_of(" \t\n") + 1);
 
-		if (line.empty())
+		if (line.empty() || line[0] == '#')
 			continue;
 
 		if (line[0] == '}')
