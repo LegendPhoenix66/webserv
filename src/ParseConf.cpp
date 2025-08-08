@@ -104,7 +104,6 @@ ParseConf::ParseConf(char *file)
 		else
 			throw InvalidFormat();
 	}
-	conffile.close();
 }
 
 ParseConf::ParseConf(const ParseConf &copy)
