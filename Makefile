@@ -7,7 +7,7 @@ CFILES = main.cpp \
 		Location.cpp
 OFILES = $(addprefix $(OBJ_DIR)/,$(CFILES:.cpp=.o))
 CC = c++
-CFLAGS = -Wall -Werror -Wextra -std=c++98
+CFLAGS = -Wall -Werror -Wextra -std=c++98 -g
 
 RED = \033[1;31m
 GREEN = \033[1;32m

@@ -13,31 +13,96 @@ ParseConf::ParseConf(char *file)
 
 	std::string			line;
 	std::getline(conffile, line);
-	size_t	first_char = line.find_first_not_of(" \t");
-	while (first_char == std::string::npos) {
-		std::getline(conffile, line);
-		first_char = line.find_first_not_of(" \t");
-	}
-	if (line.substr(0, 6) != "server")
-		throw InvalidFormat();
-	if (line.find('{', 6) == std::string::npos)
-		std::getline(conffile, line);
-	if (line.find('{') == std::string::npos)
+
+	std::istringstream	ss(line);
+	std::string			keyword;
+
+	ss >> keyword;
+	if (keyword != "server")
 		throw InvalidFormat();
 
-	bool	brace = false;
-	while (std::getline(conffile, line) && line.find('}') == std::string::npos && !brace) {
-		size_t	start = line.find_first_not_of(" \t");
-		if (start == std::string::npos)
-			continue ;
-		if (line.substr(start, 6) == "listen")
-			this->conf.setPort(std::atoi(findValue(start + 6, line).c_str()));
-		else if (line.substr(start, 11) == "server_name")
-			this->conf.setServerName(findValue(start + 11, line));
-		else if (line.substr(start, 4) == "root")
-			this->conf.setRoot(findValue(start + 4, line));
-		else if (line.substr(start, 4) == "host")
-			this->conf.setHost(findValue(start + 4, line));
+	if (line.find('{') == std::string::npos) {
+		if (!std::getline(conffile, line) || line.find('{') == std::string::npos) {
+			throw InvalidFormat();
+		}
+	}
+
+	while (std::getline(conffile, line)) {
+		line.erase(0, line.find_first_not_of(" \t\n"));
+		line.erase(line.find_last_not_of(" \t\n") + 1);
+
+		if (line.empty())
+			continue;
+
+		if (line[0] == '}')
+			break;
+
+		std::string	var;
+		std::string	first_word = line.substr(0, line.find_first_of(" \t"));
+
+		if (first_word == "location") {
+			Location	loc(conffile, line);
+			this->conf.addLocationBack(loc);
+			continue;
+		}
+
+		if (line[line.size() - 1] != ';')
+			throw InvalidFormat();
+		line.erase(line.size() - 1);
+
+		std::istringstream	iss(line);
+		iss >> var;
+
+		if (var == "listen") {
+			uint16_t	value;
+			if (!(iss >> value))
+				throw InvalidFormat();
+			this->conf.setPort(value);
+		}
+		else if (var == "server_name") {
+			std::string	value;
+			if (!(iss >> value))
+				throw InvalidFormat();
+			this->conf.setServerName(value);
+		}
+		else if (var == "root") {
+			std::string	value;
+			if (!(iss >> value))
+				throw InvalidFormat();
+			this->conf.setRoot(value);
+		}
+		else if (var == "host") {
+			std::string	value;
+			if (!(iss >> value))
+				throw InvalidFormat();
+			this->conf.setHost(value);
+		}
+		else if (var == "index") {
+			std::string	value;
+			while (iss >> value)
+				this->conf.addIndexBack(value);
+		}
+		else if (var == "error_page") {
+			std::vector<std::string>	args;
+			std::string					arg;
+			while (iss >> arg)
+				args.push_back(arg);
+
+			if (args.size() < 2)
+				throw InvalidFormat();
+
+			std::string	url = args.back();
+			args.pop_back();
+			for (size_t i = 0; i < args.size(); i++) {
+				for (size_t j = 0; j < args[i].size(); j++) {
+					if (!std::isdigit(args[i][j]))
+						throw InvalidFormat();
+				}
+				this->conf.addErrorPageBack(std::atoi(args[i].c_str()), url);
+			}
+		}
+		else
+			throw InvalidFormat();
 	}
 	conffile.close();
 }

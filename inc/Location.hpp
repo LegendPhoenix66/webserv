@@ -18,9 +18,22 @@ private:
 public:
 	Location();
 	Location(const Location &copy);
+	Location(std::ifstream &file, std::string line);
 	Location	operator=(const Location &copy);
 	~Location();
-	void		LocationParse(std::ifstream file);
+	std::string					getPath() const;
+	std::string					getRoot() const;
+	std::string					getProxyPass() const;
+	std::string					getCgiPath() const;
+	std::vector<std::string>	getIndex() const;
+	bool						getAutoindex() const;
+	std::vector<std::string>	getAllowedMethods() const;
+	std::pair<int, std::string>	getReturnDir() const;
+	std::string					getUploadStore() const;
+	class	InvalidFormat : public std::exception {
+	public:
+		const char	*what() const throw();
+	};
 };
 
 

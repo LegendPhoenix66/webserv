@@ -19,14 +19,7 @@ ServerConf::ServerConf(const ServerConf &copy)
 ServerConf	ServerConf::operator=(const ServerConf &copy)
 {
 	if (this != &copy) {
-		this->port = copy.port;
-		this->server_name = copy.server_name;
-		this->host = copy.host;
-		this->root = copy.root;
-		this->index = copy.index;
-		this->locations = copy.locations;
-		this->error_pages = copy.error_pages;
-		this->client_max_body_size = copy.client_max_body_size;
+		*this = copy;
 	}
 	return *this;
 }
