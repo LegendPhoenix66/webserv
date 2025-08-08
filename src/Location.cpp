@@ -37,8 +37,8 @@ Location::Location(std::ifstream &file, std::string line) : autoindex(false)
 	}
 
 	while (std::getline(file, line)) {
-		line.erase(0, line.find_first_not_of(" \t\n"));
-		line.erase(line.find_last_not_of(" \t\n") + 1);
+		line.erase(0, line.find_first_not_of(" \t\n\r"));
+		line.erase(line.find_last_not_of(" \t\n\r") + 1);
 
 		if (line.empty() || line[0] == '#')
 			continue;
