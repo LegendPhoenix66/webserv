@@ -88,16 +88,28 @@ Location::Location(std::ifstream &file, std::string line) : autoindex(false)
 	}
 }
 
-Location	Location::operator=(const Location &copy)
+Location& Location::operator=(const Location &copy)
 {
-	if (this != &copy) {
-		*this = copy;
-	}
+	Location temp(copy);
+	this->swap(temp);
 	return *this;
 }
 
 Location::~Location()
 {
+}
+
+void Location::swap(Location& other)
+{
+	std::swap(this->path, other.path);
+	std::swap(this->root, other.root);
+	std::swap(this->cgi_pass, other.cgi_pass);
+	std::swap(this->cgi_path, other.cgi_path);
+	std::swap(this->index, other.index);
+	std::swap(this->autoindex, other.autoindex);
+	std::swap(this->allowed_methods, other.allowed_methods);
+	std::swap(this->return_dir, other.return_dir);
+	std::swap(this->upload_store, other.upload_store);
 }
 
 std::string	Location::getPath() const

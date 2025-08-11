@@ -15,12 +15,15 @@ private:
 	std::vector<std::string>	allowed_methods;
 	std::pair<int, std::string>	return_dir;
 	std::string					upload_store;
+
+	void swap(Location& other);
 public:
 	Location();
 	Location(const Location &copy);
 	Location(std::ifstream &file, std::string line);
-	Location	operator=(const Location &copy);
+	Location&   operator=(const Location &copy);
 	~Location();
+
 	std::string					getPath() const;
 	std::string					getRoot() const;
 	std::string					getCgiPass() const;
@@ -30,6 +33,7 @@ public:
 	std::vector<std::string>	getAllowedMethods() const;
 	std::pair<int, std::string>	getReturnDir() const;
 	std::string					getUploadStore() const;
+
 	class	InvalidFormat : public std::exception {
 	public:
 		const char	*what() const throw();
