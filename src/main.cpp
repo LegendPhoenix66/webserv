@@ -60,13 +60,12 @@ void	print_conf(const ServerConf &conf)
 	}
 }
 
-int	main(int argc, char **argv)
-{
-	(void)argc;
+int main(int argc, char **argv) {
+	(void) argc;
 
 	try {
-		ParseConf	parse(argv[1]);
-		ServerConf	conf = parse.getConf();
+		ParseConf parse(argv[1]);
+		ServerConf conf = parse.getConf();
 		print_conf(conf);
 	}
 	catch (std::exception &e) {
