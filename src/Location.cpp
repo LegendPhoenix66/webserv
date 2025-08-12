@@ -1,21 +1,50 @@
 #include "../inc/Location.hpp"
 
-Location::Location() {
+Location::Location() : autoindex(false) {}
+
+Location::Location(const Location &other)
+        : path(other.path),
+          root(other.root),
+          cgi_pass(other.cgi_pass),
+          cgi_path(other.cgi_path),
+          index(other.index),
+          autoindex(other.autoindex),
+          allowed_methods(other.allowed_methods),
+          return_dir(other.return_dir),
+          upload_store(other.upload_store) {}
+
+Location &Location::operator=(Location copy) {
+    this->swap(copy);
+    return *this;
 }
 
-Location::Location(const Location &copy)
-        : path(copy.path),
-          root(copy.root),
-          cgi_pass(copy.cgi_pass),
-          cgi_path(copy.cgi_path),
-          index(copy.index),
-          autoindex(copy.autoindex),
-          allowed_methods(copy.allowed_methods),
-          return_dir(copy.return_dir),
-          upload_store(copy.upload_store) {
-}
+Location::~Location() {}
 
 Location::Location(std::ifstream &file, std::string line) : autoindex(false) {
+    parseDeclaration(file, line);
+
+    std::string trimmed_line;
+    while (std::getline(file, line)) {
+        size_t first = line.find_first_not_of(" \t\n\r");
+        if (std::string::npos == first) {
+            trimmed_line = "";
+        } else {
+            size_t last = line.find_last_not_of(" \t\n\r");
+            trimmed_line = line.substr(first, (last - first + 1));
+        }
+
+        if (trimmed_line.empty() || trimmed_line[0] == '#')
+            continue;
+
+        if (trimmed_line[0] == '}')
+            break;
+
+        parseDirective(trimmed_line);
+    }
+}
+
+// helper function to parse the `location /path {` line
+void Location::parseDeclaration(std::ifstream &file, std::string &line) {
     std::istringstream ss(line);
     std::string keyword;
 
@@ -32,61 +61,76 @@ Location::Location(std::ifstream &file, std::string line) : autoindex(false) {
             throw InvalidFormat();
         }
     }
+}
 
-    while (std::getline(file, line)) {
-        line.erase(0, line.find_first_not_of(" \t\n\r"));
-        line.erase(line.find_last_not_of(" \t\n\r") + 1);
+Location::DirectiveType Location::getDirectiveType(const std::string &var) {
+    if (var == "root") return DIR_ROOT;
+    if (var == "cgi_pass") return DIR_CGI_PASS;
+    if (var == "cgi_path") return DIR_CGI_PATH;
+    if (var == "index") return DIR_INDEX;
+    if (var == "autoindex") return DIR_AUTOINDEX;
+    if (var == "allowed_methods") return DIR_ALLOWED_METHODS;
+    if (var == "return") return DIR_RETURN;
+    if (var == "upload_store") return DIR_UPLOAD_STORE;
+    return DIR_UNKNOWN;
+}
 
-        if (line.empty() || line[0] == '#')
-            continue;
+void Location::parseDirective(const std::string &line) {
+    if (line.empty() || line.back() != ';')
+        throw InvalidFormat();
 
-        if (line[0] == '}')
-            break;
+    std::istringstream iss(line.substr(0, line.size() - 1));
+    std::string var;
+    iss >> var;
 
-        if (line[line.size() - 1] != ';')
-            throw InvalidFormat();
-        line.erase(line.size() - 1);
-
-        std::istringstream iss(line);
-        std::string var;
-        iss >> var;
-
-        if (var == "root")
+    switch (getDirectiveType(var)) {
+        case DIR_ROOT:
             iss >> this->root;
-        else if (var == "cgi_pass")
+            break;
+        case DIR_CGI_PASS:
             iss >> this->cgi_pass;
-        else if (var == "cgi_path")
+            break;
+        case DIR_CGI_PATH:
             iss >> this->cgi_path;
-        else if (var == "index") {
-            std::string value;
-            while (iss >> value)
-                this->index.push_back(value);
-        } else if (var == "autoindex") {
+            break;
+        case DIR_INDEX:
+            parseIndex(iss);
+            break;
+        case DIR_AUTOINDEX: {
             std::string value;
             iss >> value;
             if (value != "on" && value != "off")
                 throw InvalidFormat();
             this->autoindex = (value == "on");
-        } else if (var == "allowed_methods") {
-            std::string value;
-            while (iss >> value)
-                this->allowed_methods.push_back(value);
-        } else if (var == "return") {
+            break;
+        }
+        case DIR_ALLOWED_METHODS:
+            parseAllowedMethods(iss);
+            break;
+        case DIR_RETURN:
             if (!(iss >> this->return_dir.first >> this->return_dir.second))
                 throw InvalidFormat();
-        } else if (var == "upload_store")
+            break;
+        case DIR_UPLOAD_STORE:
             iss >> this->upload_store;
-        else
+            break;
+        default:
             throw InvalidFormat();
     }
 }
 
-Location &Location::operator=(Location copy) {
-    this->swap(copy);
-    return *this;
+// helper to handle index parsing
+void Location::parseIndex(std::istringstream &iss) {
+    std::string value;
+    while (iss >> value)
+        this->index.push_back(value);
 }
 
-Location::~Location() {
+// helper to handle allowed_methods parsing
+void Location::parseAllowedMethods(std::istringstream &iss) {
+    std::string value;
+    while (iss >> value)
+        this->allowed_methods.push_back(value);
 }
 
 void Location::swap(Location &other) {
