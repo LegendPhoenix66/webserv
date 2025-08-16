@@ -1,9 +1,9 @@
-#include "../inc/ParseConf.hpp"
+#include "../inc/ParseConfig.hpp"
 
-ParseConf::ParseConf() {
+ParseConfig::ParseConfig() {
 }
 
-ParseConf::ParseConf(char *file) {
+ParseConfig::ParseConfig(char *file) {
     std::ifstream conffile(file);
     if (!conffile.is_open())
         throw CouldNotOpenFile();
@@ -34,46 +34,37 @@ ParseConf::ParseConf(char *file) {
         if (line[0] == '}')
             break;
 
+        std::istringstream iss(line);
         std::string var;
-        std::string first_word = line.substr(0, line.find_first_of(" \t"));
+        iss >> var;
 
-        if (first_word == "location") {
+        if (var == "location") {
             Location loc(conffile, line);
-            this->conf.addLocationBack(loc);
+            conf.addLocationBack(loc);
             continue;
         }
 
         if (line[line.size() - 1] != ';')
             throw InvalidFormat();
-        line.erase(line.size() - 1);
 
-        std::istringstream iss(line);
-        iss >> var;
+        line.pop_back();
 
         if (var == "listen") {
-            uint16_t value;
-            if (!(iss >> value))
+            int value;
+            if (!(iss >> value) || value < 0 || value > 65535)
                 throw InvalidFormat();
-            this->conf.setPort(value);
-        } else if (var == "server_name") {
+            conf.setPort(static_cast<uint16_t>(value));
+        } else if (var == "server_name" || var == "root" || var == "host") {
             std::string value;
             if (!(iss >> value))
                 throw InvalidFormat();
-            this->conf.setServerName(value);
-        } else if (var == "root") {
-            std::string value;
-            if (!(iss >> value))
-                throw InvalidFormat();
-            this->conf.setRoot(value);
-        } else if (var == "host") {
-            std::string value;
-            if (!(iss >> value))
-                throw InvalidFormat();
-            this->conf.setHost(value);
+            if (var == "server_name") conf.setServerName(value);
+            else if (var == "root") conf.setRoot(value);
+            else conf.setHost(value);
         } else if (var == "index") {
             std::string value;
             while (iss >> value)
-                this->conf.addIndexBack(value);
+                conf.addIndexBack(value);
         } else if (var == "error_page") {
             std::vector<std::string> args;
             std::string arg;
@@ -85,36 +76,36 @@ ParseConf::ParseConf(char *file) {
 
             std::string url = args.back();
             args.pop_back();
-            for (size_t i = 0; i < args.size(); i++) {
-                for (size_t j = 0; j < args[i].size(); j++) {
+            for (size_t i = 0; i < args.size(); ++i) {
+                for (size_t j = 0; j < args[i].size(); ++j) {
                     if (!std::isdigit(args[i][j]))
                         throw InvalidFormat();
                 }
-                this->conf.addErrorPageBack(std::atoi(args[i].c_str()), url);
+                conf.addErrorPageBack(std::atoi(args[i].c_str()), url);
             }
         } else
             throw InvalidFormat();
     }
 }
 
-ParseConf::ParseConf(const ParseConf &copy)
+ParseConfig::ParseConfig(const ParseConfig &copy)
 : conf(copy.conf)
 {
 }
 
-ParseConf &ParseConf::operator=(ParseConf copy) {
+ParseConfig &ParseConfig::operator=(ParseConfig copy) {
 	this->swap(copy);
     return *this;
 }
 
-ParseConf::~ParseConf() {
+ParseConfig::~ParseConfig() {
 }
 
-void ParseConf::swap(ParseConf &other) {
+void ParseConfig::swap(ParseConfig &other) {
     std::swap(this->conf, other.conf);
 }
 
-std::string ParseConf::findValue(size_t pos, std::string line) {
+std::string ParseConfig::findValue(size_t pos, std::string line) {
     size_t start = line.find_first_not_of(" \t", pos);
     if (start == std::string::npos)
         throw InvalidFormat();
@@ -126,14 +117,14 @@ std::string ParseConf::findValue(size_t pos, std::string line) {
     return (line.substr(start, end - start));
 }
 
-ServerConf ParseConf::getConf() const {
+ServerConfig ParseConfig::getConfig() const {
     return (this->conf);
 }
 
-const char *ParseConf::CouldNotOpenFile::what() const throw() {
+const char *ParseConfig::CouldNotOpenFile::what() const throw() {
     return "could not open file.";
 }
 
-const char *ParseConf::InvalidFormat::what() const throw() {
+const char *ParseConfig::InvalidFormat::what() const throw() {
     return "invalid format.";
 }

@@ -2,30 +2,28 @@
 #define PARSECONF_HPP
 
 #include "WebServ.hpp"
-#include "ServerConf.hpp"
+#include "ServerConfig.hpp"
 
-class ParseConf {
+class ParseConfig {
 private:
-    ServerConf conf;
+    ServerConfig conf;
 
-	void swap(ParseConf &other);
+	void swap(ParseConfig &other);
 	std::string findValue(size_t pos, std::string line);
 public:
     // Constructors, Destructor, and Operators
-    ParseConf();
+    ParseConfig();
 
-    ParseConf(char *file);
+    ParseConfig(const ParseConfig &copy);
 
-    ParseConf(const ParseConf &copy);
+    ParseConfig &operator=(ParseConfig copy);
 
-    ParseConf &operator=(ParseConf copy);
+    ~ParseConfig();
 
-    ~ParseConf();
+    ParseConfig(char *file);
 
-    // Public Interface
-    ServerConf getConf() const;
+    ServerConfig getConfig() const;
 
-    // Exception Classes
     class CouldNotOpenFile : public std::exception {
     public:
         const char *what() const throw();

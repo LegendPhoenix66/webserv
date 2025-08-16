@@ -2,7 +2,7 @@ NAME = webserv
 SRC_DIR = src
 OBJ_DIR = obj
 CFILES = main.cpp \
-		ParseConf.cpp \
+		ParseConfig.cpp \
 		ServerConfig.cpp \
 		Location.cpp
 OFILES = $(addprefix $(OBJ_DIR)/,$(CFILES:.cpp=.o))

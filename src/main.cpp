@@ -1,7 +1,7 @@
 #include "../inc/WebServ.hpp"
-#include "../inc/ParseConf.hpp"
+#include "../inc/ParseConfig.hpp"
 
-void	print_conf(const ServerConf &conf)
+void	print_conf(const ServerConfig &conf)
 {
 	std::cout << "Server Configuration:" << std::endl;
 	std::cout << "Port: " << conf.getPort() << std::endl;
@@ -64,9 +64,8 @@ int main(int argc, char **argv) {
 	(void) argc;
 
 	try {
-		ParseConf parse(argv[1]);
-		ServerConf conf = parse.getConf();
-		print_conf(conf);
+		ServerConfig config = ParseConfig(argv[1]).getConfig();
+		print_conf(config);
 	}
 	catch (std::exception &e) {
 		std::cerr << "Error: " << e.what() << std::endl;
