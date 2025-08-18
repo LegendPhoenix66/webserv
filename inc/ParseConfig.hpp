@@ -6,9 +6,14 @@
 
 class ParseConfig {
 private:
-    ServerConfig conf;
+    ServerConfig config;
 
 	void swap(ParseConfig &other);
+    std::ifstream openFile(char *file);
+    void parseHeader(std::ifstream &fileStream);
+    void parseConfigBlock(std::ifstream &fileStream);
+    void trim(std::string &line);
+    void parseDirective(std:ifstream &fileStream, std::string &line);
 	std::string findValue(size_t pos, std::string line);
 public:
     // Constructors, Destructor, and Operators
