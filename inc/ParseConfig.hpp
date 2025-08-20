@@ -9,11 +9,16 @@ private:
     ServerConfig config;
 
 	void swap(ParseConfig &other);
-    std::ifstream openFile(char *file);
-    void parseHeader(std::ifstream &fileStream);
+    static std::ifstream openFile(char *file);
+    static void parseHeader(std::ifstream &fileStream);
     void parseConfigBlock(std::ifstream &fileStream);
-    void trim(std::string &line);
-    void parseDirective(std:ifstream &fileStream, std::string &line);
+    static void trim(std::string &line);
+    void parseDirective(std::ifstream &fileStream, std::string &line);
+    void handleLocation(std::ifstream &fileStream, std::string &line);
+    void handleListen(std::istringstream &iss);
+    void handleSimpleDirective(const std::string &var, std::istringstream &iss);
+    void handleIndex(std::istringstream &iss);
+    void handleErrorPage(std::istringstream &iss);
 	std::string findValue(size_t pos, std::string line);
 public:
     // Constructors, Destructor, and Operators
@@ -25,7 +30,7 @@ public:
 
     ~ParseConfig();
 
-    ParseConfig(char *file);
+    explicit ParseConfig(char *file);
 
     ServerConfig getConfig() const;
 

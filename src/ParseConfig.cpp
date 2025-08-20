@@ -69,52 +69,73 @@ void ParseConfig::parseDirective(std::ifstream &fileStream, std::string &line) {
     iss >> var;
 
     if (var == "location") {
-        Location loc(fileStream, line);
-        config.addLocationBack(loc);
+        handleLocation(fileStream, line);
         return;
     }
 
-    if (line[line.size() - 1] != ';')
+    if (line.empty() || line[line.size() - 1] != ';')
         throw InvalidFormat();
 
-    line.pop_back();
+    line.erase(line.size() - 1);
 
     if (var == "listen") {
-        int value;
-        if (!(iss >> value) || value < 0 || value > 65535)
-            throw InvalidFormat();
-        config.setPort(static_cast<uint16_t>(value));
+        handleListen(iss);
     } else if (var == "server_name" || var == "root" || var == "host") {
-        std::string value;
-        if (!(iss >> value))
-            throw InvalidFormat();
-        if (var == "server_name") config.setServerName(value);
-        else if (var == "root") config.setRoot(value);
-        else config.setHost(value);
+        handleSimpleDirective(var, iss);
     } else if (var == "index") {
-        std::string value;
-        while (iss >> value)
-            config.addIndexBack(value);
+        handleIndex(iss);
     } else if (var == "error_page") {
-        std::vector<std::string> args;
-        std::string arg;
-        while (iss >> arg)
-            args.push_back(arg);
-
-        if (args.size() < 2)
-            throw InvalidFormat();
-
-        std::string url = args.back();
-        args.pop_back();
-        for (size_t i = 0; i < args.size(); ++i) {
-            for (size_t j = 0; j < args[i].size(); ++j) {
-                if (!std::isdigit(args[i][j]))
-                    throw InvalidFormat();
-            }
-            config.addErrorPageBack(std::atoi(args[i].c_str()), url);
-        }
-    } else
+        handleErrorPage(iss);
+    } else {
         throw InvalidFormat();
+    }
+}
+
+void ParseConfig::handleLocation(std::ifstream &fileStream, std::string &line) {
+    Location loc(fileStream, line);
+    config.addLocationBack(loc);
+}
+
+void ParseConfig::handleListen(std::istringstream &iss) {
+    int value;
+    if (!(iss >> value) || value < 0 || value > 65535)
+        throw InvalidFormat();
+    config.setPort(static_cast<unsigned short>(value));
+}
+
+void ParseConfig::handleSimpleDirective(const std::string &var, std::istringstream &iss) {
+    std::string value;
+    if (!(iss >> value))
+        throw InvalidFormat();
+    if (var == "server_name") config.setServerName(value);
+    else if (var == "root") config.setRoot(value);
+    else config.setHost(value);
+}
+
+void ParseConfig::handleIndex(std::istringstream &iss) {
+    std::string value;
+    while (iss >> value)
+        config.addIndexBack(value);
+}
+
+void ParseConfig::handleErrorPage(std::istringstream &iss) {
+    std::vector<std::string> args;
+    std::string arg;
+    while (iss >> arg)
+        args.push_back(arg);
+
+    if (args.size() < 2)
+        throw InvalidFormat();
+
+    std::string url = args.back();
+    args.pop_back();
+    for (size_t i = 0; i < args.size(); ++i) {
+        char *endptr;
+        long value = std::strtol(args[i].c_str(), &endptr, 10);
+        if (*endptr != '\0' || value < 0 || value > 65535)
+            throw InvalidFormat();
+        config.addErrorPageBack(static_cast<unsigned short>(value), url);
+    }
 }
 
 std::string ParseConfig::findValue(size_t pos, std::string line) {
