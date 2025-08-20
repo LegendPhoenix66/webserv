@@ -4,43 +4,168 @@
 #include "WebServ.hpp"
 #include "ServerConfig.hpp"
 
+/**
+ * @class ParseConfig
+ * @brief Parses and loads server configuration from a file.
+ *
+ * The ParseConfig class reads configuration files, validates their format,
+ * and populates a ServerConfig object with the parsed directives. It handles
+ * parsing of server blocks, directives, and location blocks, and throws
+ * exceptions for invalid formats or file errors.
+ */
 class ParseConfig {
 private:
+    /** @brief The parsed server configuration. */
     ServerConfig config;
 
-	void swap(ParseConfig &other);
+    /**
+     * @brief Swaps the contents of this ParseConfig with another.
+     * @param other The ParseConfig to swap with.
+     */
+    void swap(ParseConfig &other);
+
+    /**
+     * @brief Opens a configuration file for reading.
+     * @param file The filename to open.
+     * @return An input file stream for the file.
+     * @throws CouldNotOpenFile if the file cannot be opened.
+     */
     static std::ifstream openFile(char *file);
+
+    /**
+     * @brief Parses the header of the configuration file (e.g., "server {").
+     * @param fileStream The input file stream.
+     * @throws InvalidFormat if the header is invalid.
+     */
     static void parseHeader(std::ifstream &fileStream);
+
+    /**
+     * @brief Parses the main configuration block.
+     * @param fileStream The input file stream.
+     * @throws InvalidFormat if the block is invalid.
+     */
     void parseConfigBlock(std::ifstream &fileStream);
+
+    /**
+     * @brief Trims whitespace from both ends of a line.
+     * @param line The line to trim.
+     */
     static void trim(std::string &line);
+
+    /**
+     * @brief Parses a single configuration directive line.
+     * @param fileStream The input file stream.
+     * @param line The directive line to parse.
+     * @throws InvalidFormat if the directive is invalid.
+     */
     void parseDirective(std::ifstream &fileStream, std::string &line);
+
+    /**
+     * @brief Handles parsing of a location block.
+     * @param fileStream The input file stream.
+     * @param line The location directive line.
+     * @throws InvalidFormat if the location block is invalid.
+     */
     void handleLocation(std::ifstream &fileStream, std::string &line);
+
+    /**
+     * @brief Handles the 'listen' directive.
+     * @param iss The input string stream containing the port value.
+     * @throws InvalidFormat if the port is invalid.
+     */
     void handleListen(std::istringstream &iss);
+
+    /**
+     * @brief Handles simple directives (server_name, root, host).
+     * @param var The directive name.
+     * @param iss The input string stream containing the value.
+     * @throws InvalidFormat if the directive is invalid.
+     */
     void handleSimpleDirective(const std::string &var, std::istringstream &iss);
+
+    /**
+     * @brief Handles the 'index' directive.
+     * @param iss The input string stream containing index file names.
+     */
     void handleIndex(std::istringstream &iss);
+
+    /**
+     * @brief Handles the 'error_page' directive.
+     * @param iss The input string stream containing error codes and URL.
+     * @throws InvalidFormat if the directive is invalid.
+     */
     void handleErrorPage(std::istringstream &iss);
-	std::string findValue(size_t pos, std::string line);
+
+    /**
+     * @brief Finds and extracts a value from a directive line.
+     * @param pos The starting position in the line.
+     * @param line The directive line.
+     * @return The extracted value string.
+     * @throws InvalidFormat if the value cannot be found.
+     */
+    std::string findValue(size_t pos, std::string line);
+
 public:
-    // Constructors, Destructor, and Operators
+    /**
+     * @brief Default constructor.
+     */
     ParseConfig();
 
+    /**
+     * @brief Copy constructor.
+     * @param copy The ParseConfig to copy from.
+     */
     ParseConfig(const ParseConfig &copy);
 
+    /**
+     * @brief Assignment operator using copy-and-swap idiom.
+     * @param copy The ParseConfig to assign from.
+     * @return Reference to this ParseConfig.
+     */
     ParseConfig &operator=(ParseConfig copy);
 
+    /**
+     * @brief Destructor.
+     */
     ~ParseConfig();
 
+    /**
+     * @brief Constructs a ParseConfig by parsing configuration from a file.
+     * @param file The filename to parse.
+     * @throws CouldNotOpenFile if the file cannot be opened.
+     * @throws InvalidFormat if the configuration is invalid.
+     */
     explicit ParseConfig(char *file);
 
+    /**
+     * @brief Gets the parsed server configuration.
+     * @return The ServerConfig object.
+     */
     ServerConfig getConfig() const;
 
+    /**
+     * @class CouldNotOpenFile
+     * @brief Exception thrown when a configuration file cannot be opened.
+     */
     class CouldNotOpenFile : public std::exception {
     public:
+        /**
+         * @brief Returns an error message describing the file open error.
+         * @return The error message string.
+         */
         const char *what() const throw();
     };
 
+    /**
+     * @class InvalidFormat
+     * @brief Exception thrown when the configuration format is invalid.
+     */
     class InvalidFormat : public std::exception {
     public:
+        /**
+         * @brief Returns an error message describing the invalid format.
+         * @return The error message string.
+         */
         const char *what() const throw();
     };
 };
