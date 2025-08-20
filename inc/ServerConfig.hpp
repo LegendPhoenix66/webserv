@@ -16,7 +16,7 @@
 class ServerConfig {
 private:
     /** @brief Port number the server listens on. */
-    uint16_t port{};
+    uint16_t port;
     /** @brief Name of the server (used for virtual hosting). */
     std::string server_name;
     /** @brief Host address for the server. */
@@ -30,7 +30,7 @@ private:
     /** @brief Mapping of HTTP error codes to custom error page paths. */
     std::map<int, std::string> error_pages;
     /** @brief Maximum allowed size for client request bodies (in bytes). */
-    size_t client_max_body_size{};
+    size_t client_max_body_size;
 
     /**
      * @brief Swaps the contents of this ServerConfig with another.

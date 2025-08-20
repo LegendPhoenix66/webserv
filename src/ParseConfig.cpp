@@ -4,12 +4,11 @@ ParseConfig::ParseConfig() {
 }
 
 ParseConfig::ParseConfig(const ParseConfig &copy)
-: config(copy.config)
-{
+        : config(copy.config) {
 }
 
 ParseConfig &ParseConfig::operator=(ParseConfig copy) {
-	this->swap(copy);
+    this->swap(copy);
     return *this;
 }
 
@@ -21,17 +20,13 @@ void ParseConfig::swap(ParseConfig &other) {
 }
 
 ParseConfig::ParseConfig(char *file) {
-    std::ifstream fileStream = openFile(file);
+    std::ifstream fileStream;
+    fileStream.open(file);
+    if (!fileStream.is_open())
+        throw CouldNotOpenFile();
     parseHeader(fileStream);
     parseConfigBlock(fileStream);
     fileStream.close();
-}
-
-std::ifstream ParseConfig::openFile(char *file) {
-    std::ifstream fileStream(file);
-    if (!fileStream.is_open())
-        throw CouldNotOpenFile();
-    return fileStream;
 }
 
 void ParseConfig::parseHeader(std::ifstream &fileStream) {
@@ -119,7 +114,7 @@ void ParseConfig::handleIndex(std::istringstream &iss) {
 }
 
 void ParseConfig::handleErrorPage(std::istringstream &iss) {
-    std::vector<std::string> args;
+    std::vector <std::string> args;
     std::string arg;
     while (iss >> arg)
         args.push_back(arg);

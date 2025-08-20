@@ -76,7 +76,7 @@ Location::DirectiveType Location::getDirectiveType(const std::string &var) {
 }
 
 void Location::parseDirective(const std::string &line) {
-    if (line.empty() || line.back() != ';')
+    if (line.empty() || line[line.size() - 1] != ';')
         throw InvalidFormat();
 
     std::istringstream iss(line.substr(0, line.size() - 1));

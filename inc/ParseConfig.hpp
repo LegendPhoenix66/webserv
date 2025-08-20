@@ -25,14 +25,6 @@ private:
     void swap(ParseConfig &other);
 
     /**
-     * @brief Opens a configuration file for reading.
-     * @param file The filename to open.
-     * @return An input file stream for the file.
-     * @throws CouldNotOpenFile if the file cannot be opened.
-     */
-    static std::ifstream openFile(char *file);
-
-    /**
      * @brief Parses the header of the configuration file (e.g., "server {").
      * @param fileStream The input file stream.
      * @throws InvalidFormat if the header is invalid.

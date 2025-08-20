@@ -2,7 +2,9 @@
 
 #include "../inc/ServerConfig.hpp"
 
-ServerConfig::ServerConfig() {
+ServerConfig::ServerConfig() :
+        port(0),
+        client_max_body_size(0) {
 }
 
 ServerConfig::ServerConfig(const ServerConfig &copy)
@@ -41,15 +43,15 @@ void ServerConfig::setPort(uint16_t port) {
 }
 
 void ServerConfig::setServerName(std::string name) {
-    this->server_name = std::move(name);
+    this->server_name = name;
 }
 
 void ServerConfig::setHost(std::string host) {
-    this->host = std::move(host);
+    this->host = host;
 }
 
 void ServerConfig::setRoot(std::string root) {
-    this->root = std::move(root);
+    this->root = root;
 }
 
 void ServerConfig::addIndexBack(const std::string &index) {
@@ -61,7 +63,7 @@ void ServerConfig::addLocationBack(const Location &loc) {
 }
 
 void ServerConfig::addErrorPageBack(int code, std::string url) {
-    this->error_pages[code] = std::move(url);
+    this->error_pages[code] = url;
 }
 
 uint16_t ServerConfig::getPort() const {
