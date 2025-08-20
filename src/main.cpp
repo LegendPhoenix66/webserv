@@ -61,7 +61,10 @@ void	print_conf(const ServerConfig &conf)
 }
 
 int main(int argc, char **argv) {
-	(void) argc;
+    if (argc < 2) {
+        std::cerr << "Error: No config file specified.\nUsage: ./webserv <config_file>" << std::endl;
+        return 1;
+    }
 
 	try {
 		ServerConfig config = ParseConfig(argv[1]).getConfig();
