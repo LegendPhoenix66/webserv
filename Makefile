@@ -4,7 +4,8 @@ OBJ_DIR = obj
 CFILES = main.cpp \
 		ParseConfig.cpp \
 		ServerConfig.cpp \
-		Location.cpp
+		Location.cpp \
+		Server.cpp
 OFILES = $(addprefix $(OBJ_DIR)/,$(CFILES:.cpp=.o))
 CC = c++
 CFLAGS = -Wall -Werror -Wextra -std=c++98 -g

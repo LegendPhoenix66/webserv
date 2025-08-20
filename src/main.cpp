@@ -1,5 +1,6 @@
 #include "../inc/WebServ.hpp"
 #include "../inc/ParseConfig.hpp"
+#include "../inc/Server.hpp"
 
 void print_conf(const ServerConfig &conf) {
     std::cout << "Server Configuration:" << std::endl;
@@ -78,8 +79,14 @@ ServerConfig init_config(char *path) {
 }
 
 void start_server(const std::vector<ServerConfig> &configs) {
-    (void) configs;
-    // TODO: Create sockets, bind, listen, and start event loop
+    std::vector<Server> servers;
+    for (size_t i = 0; i < configs.size(); ++i) {
+        servers.push_back(Server(configs[i]));
+    }
+    for (size_t i = 0; i < servers.size(); ++i) {
+        servers[i].start();
+    }
+    // TODO: Integrate with poll/select/epoll for event loop
 }
 
 int main(int argc, char **argv) {
