@@ -79,7 +79,8 @@ ServerConfig init_config(char *path) {
 }
 
 void start_server(const std::vector<ServerConfig> &configs) {
-    std::vector<Server> servers;
+    std::vector <Server> servers;
+    servers.reserve(configs.size());
     for (size_t i = 0; i < configs.size(); ++i) {
         servers.push_back(Server(configs[i]));
     }

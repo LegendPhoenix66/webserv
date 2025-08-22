@@ -2,6 +2,14 @@
 #define WEBSERV_SERVER_HPP
 
 #include "ServerConfig.hpp"
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <poll.h>
+#include <fcntl.h>
+#include <netinet/in.h>
+#include <cstring>
+#include <unistd.h>
+#include <iostream>
 
 /**
  * @class Server
@@ -23,6 +31,14 @@ private:
      * @param other The Server to swap with.
      */
     void swap(Server &other);
+
+    /**
+     * @brief Runs the main event loop for handling incoming connections and requests.
+     *
+     * This method monitors sockets for activity, accepts new connections,
+     * and processes client requests according to the server configuration.
+     */
+    void runEventLoop();
 
 public:
     /** @brief Default constructor. Initializes an empty server. */
