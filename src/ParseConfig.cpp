@@ -53,16 +53,22 @@ void ParseConfig::parseHeader(std::ifstream &fileStream) {
 void ParseConfig::parseConfigBlock(std::ifstream &fileStream) {
 	std::string		line;
 	ServerConfig	config;
+	bool			end = false;
+
 	while (std::getline(fileStream, line)) {
 		trim(line);
 		if (line.empty() || line[0] == '#')
 			continue;
 		if (line[0] == '}') {
 			this->configs.push_back(config);
+			end = true;
 			break;
 		}
 		parseDirective(fileStream, line, config);
 	}
+
+	if (!end)
+		throw InvalidFormat();
 }
 
 void ParseConfig::trim(std::string &line) {
