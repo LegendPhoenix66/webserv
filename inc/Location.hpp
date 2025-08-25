@@ -34,6 +34,7 @@ private:
     std::pair<int, std::string> return_dir;
     /** @brief Directory for file uploads in this location. */
     std::string upload_store;
+	size_t client_max_body_size;
 
     /**
      * @brief Swaps the contents of this Location with another.
@@ -56,6 +57,7 @@ private:
         DIR_ALLOWED_METHODS,/**< The 'allowed_methods' directive. */
         DIR_RETURN,         /**< The 'return' directive. */
         DIR_UPLOAD_STORE,   /**< The 'upload_store' directive. */
+        DIR_CLIENT_MAX_BODY_SIZE, /**< The 'client_max_body_size' directive. */
         DIR_UNKNOWN         /**< Unknown or unsupported directive. */
     };
 
@@ -178,6 +180,8 @@ public:
      * @return The upload store string.
      */
     std::string getUploadStore() const;
+
+	size_t getClientMaxBodySize() const;
 
     /**
      * @class InvalidFormat

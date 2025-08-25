@@ -72,6 +72,7 @@ Location::DirectiveType Location::getDirectiveType(const std::string &var) {
     if (var == "allowed_methods") return DIR_ALLOWED_METHODS;
     if (var == "return") return DIR_RETURN;
     if (var == "upload_store") return DIR_UPLOAD_STORE;
+	if (var == "client_max_body_size") return DIR_CLIENT_MAX_BODY_SIZE;
     return DIR_UNKNOWN;
 }
 
@@ -114,6 +115,13 @@ void Location::parseDirective(const std::string &line) {
         case DIR_UPLOAD_STORE:
             iss >> this->upload_store;
             break;
+		case DIR_CLIENT_MAX_BODY_SIZE: {
+			int value;
+			if (!(iss >> value) || value < 0)
+				throw InvalidFormat();
+			this->client_max_body_size = static_cast<size_t>(value);
+			break;
+		}
         default:
             throw InvalidFormat();
     }
@@ -179,6 +187,10 @@ std::pair<int, std::string> Location::getReturnDir() const {
 
 std::string Location::getUploadStore() const {
     return this->upload_store;
+}
+
+size_t	Location::getClientMaxBodySize() const {
+	return this->client_max_body_size;
 }
 
 const char *Location::InvalidFormat::what() const throw() {

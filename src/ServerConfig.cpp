@@ -3,97 +3,101 @@
 #include "../inc/ServerConfig.hpp"
 
 ServerConfig::ServerConfig() :
-        port(0),
-        client_max_body_size(0) {
+		port(0),
+		client_max_body_size(0) {
 }
 
 ServerConfig::ServerConfig(const ServerConfig &copy)
-        : port(copy.port),
-          server_name(copy.server_name),
-          host(copy.host),
-          root(copy.root),
-          index(copy.index),
-          locations(copy.locations),
-          error_pages(copy.error_pages),
-          client_max_body_size(copy.client_max_body_size) {
+		: port(copy.port),
+		  server_name(copy.server_name),
+		  host(copy.host),
+		  root(copy.root),
+		  index(copy.index),
+		  locations(copy.locations),
+		  error_pages(copy.error_pages),
+		  client_max_body_size(copy.client_max_body_size) {
 }
 
 ServerConfig &ServerConfig::operator=(ServerConfig copy) {
-    this->swap(copy);
-    return *this;
+	this->swap(copy);
+	return *this;
 }
 
 ServerConfig::~ServerConfig() {
 }
 
 void ServerConfig::swap(ServerConfig &other) {
-    std::swap(port, other.port);
-    std::swap(server_name, other.server_name);
-    std::swap(host, other.host);
-    std::swap(root, other.root);
-    std::swap(index, other.index);
-    std::swap(locations, other.locations);
-    std::swap(error_pages, other.error_pages);
-    std::swap(client_max_body_size, other.client_max_body_size);
+	std::swap(port, other.port);
+	std::swap(server_name, other.server_name);
+	std::swap(host, other.host);
+	std::swap(root, other.root);
+	std::swap(index, other.index);
+	std::swap(locations, other.locations);
+	std::swap(error_pages, other.error_pages);
+	std::swap(client_max_body_size, other.client_max_body_size);
 }
 
 
 void ServerConfig::setPort(uint16_t port) {
-    this->port = port;
+	this->port = port;
 }
 
 void ServerConfig::setServerName(std::string name) {
-    this->server_name = name;
+	this->server_name = name;
 }
 
 void ServerConfig::setHost(std::string host) {
-    this->host = host;
+	this->host = host;
 }
 
 void ServerConfig::setRoot(std::string root) {
-    this->root = root;
+	this->root = root;
+}
+
+void ServerConfig::setClientMaxBodySize(size_t size) {
+	this->client_max_body_size = size;
 }
 
 void ServerConfig::addIndexBack(const std::string &index) {
-    this->index.push_back(index);
+	this->index.push_back(index);
 }
 
 void ServerConfig::addLocationBack(const Location &loc) {
-    this->locations.push_back(loc);
+	this->locations.push_back(loc);
 }
 
 void ServerConfig::addErrorPageBack(int code, std::string url) {
-    this->error_pages[code] = url;
+	this->error_pages[code] = url;
 }
 
 uint16_t ServerConfig::getPort() const {
-    return port;
+	return port;
 }
 
 std::string ServerConfig::getServerName() const {
-    return server_name;
+	return server_name;
 }
 
 std::string ServerConfig::getHost() const {
-    return host;
+	return host;
 }
 
 std::string ServerConfig::getRoot() const {
-    return root;
+	return root;
 }
 
 std::vector<std::string> ServerConfig::getIndex() const {
-    return index;
+	return index;
 }
 
 std::vector<Location> ServerConfig::getLocations() const {
-    return locations;
+	return locations;
 }
 
 std::map<int, std::string> ServerConfig::getErrorPages() const {
-    return error_pages;
+	return error_pages;
 }
 
 size_t ServerConfig::getClientMaxBodySize() const {
-    return client_max_body_size;
+	return client_max_body_size;
 }
