@@ -34,7 +34,8 @@ private:
     std::pair<int, std::string> return_dir;
     /** @brief Directory for file uploads in this location. */
     std::string upload_store;
-	size_t client_max_body_size;
+	/** @brief Maximum allowed size for client request bodies (in bytes). */
+	size_t	client_max_body_size;
 
     /**
      * @brief Swaps the contents of this Location with another.
@@ -181,6 +182,10 @@ public:
      */
     std::string getUploadStore() const;
 
+	/**
+	 * @brief Gets the maximum allowed size for client request bodies.
+	 * @return The size in bytes.
+	 */
 	size_t getClientMaxBodySize() const;
 
     /**

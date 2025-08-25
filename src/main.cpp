@@ -68,11 +68,6 @@ int check_args(int argc) {
 	return 0;
 }
 
-// support for multiple config files
-//std::vector<ServerConfig> init_config(char *path) {
-//	return ParseConfig(path).getConfigs();
-//}
-
 std::vector<ServerConfig>	init_config(char *path) {
 	return ParseConfig(path).getConfigs();
 }
@@ -93,7 +88,6 @@ int main(int argc, char **argv) {
 	if (check_args(argc)) return 1;
 
 	try {
-
 		std::vector<ServerConfig> configs = init_config(argv[1]);
 		for (size_t i = 0; i < configs.size(); i++)
 			print_conf(configs[i], i + 1);

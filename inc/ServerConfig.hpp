@@ -30,7 +30,7 @@ private:
 	/** @brief Mapping of HTTP error codes to custom error page paths. */
 	std::map<int, std::string> error_pages;
 	/** @brief Maximum allowed size for client request bodies (in bytes). */
-	size_t client_max_body_size;
+	size_t	client_max_body_size;
 
 	/**
 	 * @brief Swaps the contents of this ServerConfig with another.
