@@ -27,14 +27,14 @@ ServerConfig::~ServerConfig() {
 }
 
 void ServerConfig::swap(ServerConfig &other) {
-	std::swap(port, other.port);
-	std::swap(server_name, other.server_name);
-	std::swap(host, other.host);
-	std::swap(root, other.root);
-	std::swap(index, other.index);
-	std::swap(locations, other.locations);
-	std::swap(error_pages, other.error_pages);
-	std::swap(client_max_body_size, other.client_max_body_size);
+	std::swap(this->port, other.port);
+	std::swap(this->server_name, other.server_name);
+	std::swap(this->host, other.host);
+	std::swap(this->root, other.root);
+	std::swap(this->index, other.index);
+	std::swap(this->locations, other.locations);
+	std::swap(this->error_pages, other.error_pages);
+	std::swap(this->client_max_body_size, other.client_max_body_size);
 }
 
 
@@ -99,5 +99,5 @@ std::map<int, std::string> ServerConfig::getErrorPages() const {
 }
 
 size_t ServerConfig::getClientMaxBodySize() const {
-	return client_max_body_size;
+	return this->client_max_body_size;
 }

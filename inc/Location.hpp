@@ -193,11 +193,15 @@ public:
      * @brief Exception thrown when the configuration format is invalid.
      */
     class InvalidFormat : public std::exception {
+	private:
+		std::string message;
     public:
         /**
          * @brief Returns an error message describing the invalid format.
          * @return The error message string.
          */
+		explicit InvalidFormat(std::string message = "Invalid format.");
+		~InvalidFormat() throw();
         const char *what() const throw();
     };
 

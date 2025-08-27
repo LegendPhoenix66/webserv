@@ -89,15 +89,6 @@ private:
 	void handleErrorPage(std::istringstream &iss , ServerConfig &config);
 
 	/**
-	 * @brief Finds and extracts a value from a directive line.
-	 * @param pos The starting position in the line.
-	 * @param line The directive line.
-	 * @return The extracted value string.
-	 * @throws InvalidFormat if the value cannot be found.
-	 */
-	std::string findValue(size_t pos, std::string line);
-
-	/**
 	 * @brief Handles the 'client_max_body_size' directive.
 	 * @param iss The input string stream containing the size value.
 	 * @throws InvalidFormat if the size is invalid.
@@ -160,11 +151,15 @@ public:
 	 * @brief Exception thrown when the configuration format is invalid.
 	 */
 	class InvalidFormat : public std::exception {
+	private:
+		std::string	message;
 	public:
 		/**
 		 * @brief Returns an error message describing the invalid format.
 		 * @return The error message string.
 		 */
+		explicit InvalidFormat(std::string message = "Invalid format.");
+		~InvalidFormat() throw();
 		const char *what() const throw();
 	};
 };

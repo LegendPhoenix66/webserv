@@ -51,15 +51,15 @@ void Location::parseDeclaration(std::ifstream &file, std::string &line) {
 
 	ss >> keyword;
 	if (keyword != "location")
-		throw InvalidFormat();
+		throw InvalidFormat("Config File: Invalid location declaration.");
 
 	ss >> this->path;
 	if (this->path.empty() || this->path == "{")
-		throw InvalidFormat();
+		throw InvalidFormat("Config File: Missing or invalid path in location declaration.");
 
 	if (line.find('{') == std::string::npos) {
 		if (!std::getline(file, line) || line.find('{') == std::string::npos) {
-			throw InvalidFormat();
+			throw InvalidFormat("Config File: Missing '{' at start of location block.");
 		}
 	}
 }
@@ -79,7 +79,7 @@ Location::DirectiveType Location::getDirectiveType(const std::string &var) {
 
 void Location::parseDirective(const std::string &line) {
 	if (line.empty() || line[line.size() - 1] != ';')
-		throw InvalidFormat();
+		throw InvalidFormat("Config File: Missing ';' at end of line.");
 
 	std::istringstream iss(line.substr(0, line.size() - 1));
 	std::string var;
@@ -102,7 +102,7 @@ void Location::parseDirective(const std::string &line) {
 			std::string value;
 			iss >> value;
 			if (value != "on" && value != "off")
-				throw InvalidFormat();
+				throw InvalidFormat("Config File: Invalid autoindex value.");
 			this->autoindex = (value == "on");
 			break;
 		}
@@ -111,7 +111,7 @@ void Location::parseDirective(const std::string &line) {
 			break;
 		case DIR_RETURN:
 			if (!(iss >> this->return_dir.first >> this->return_dir.second))
-				throw InvalidFormat();
+				throw InvalidFormat("Config File: Invalid return directive.");
 			break;
 		case DIR_UPLOAD_STORE:
 			iss >> this->upload_store;
@@ -119,11 +119,11 @@ void Location::parseDirective(const std::string &line) {
 		case DIR_CLIENT_MAX_BODY_SIZE:
 			int value;
 			if (!(iss >> value) || value < 0)
-				throw InvalidFormat();
+				throw InvalidFormat("Config File: Invalid client_max_body_size.");
 			this->client_max_body_size = static_cast<size_t>(value);
 			break;
 		default:
-			throw InvalidFormat();
+			throw InvalidFormat("Config File: Unknown directive in location block.");
 	}
 }
 
@@ -194,6 +194,12 @@ size_t	Location::getClientMaxBodySize() const {
 	return this->client_max_body_size;
 }
 
+Location::InvalidFormat::InvalidFormat(std::string message) : message(message)
+{}
+
+Location::InvalidFormat::~InvalidFormat() throw()
+{}
+
 const char *Location::InvalidFormat::what() const throw() {
-	return "invalid format.";
+	return this->message.c_str();
 }

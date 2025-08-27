@@ -43,10 +43,10 @@ void ParseConfig::parseHeader(std::ifstream &fileStream) {
 	std::string keyword;
 	ss >> keyword;
 	if (keyword != "server")
-		throw InvalidFormat();
+		throw InvalidFormat("Config File: Invalid header.");
 	if (line.find('{') == std::string::npos) {
 		if (!std::getline(fileStream, line) || line.find('{') == std::string::npos)
-			throw InvalidFormat();
+			throw InvalidFormat("Config File: Missing '{' at start of server block.");
 	}
 }
 
@@ -68,7 +68,7 @@ void ParseConfig::parseConfigBlock(std::ifstream &fileStream) {
 	}
 
 	if (!end)
-		throw InvalidFormat();
+		throw InvalidFormat("Config File: Missing '}' at end of server block.");
 }
 
 void ParseConfig::trim(std::string &line) {
@@ -86,7 +86,7 @@ void ParseConfig::parseDirective(std::ifstream &fileStream, std::string &line, S
 	}
 
 	if (line.empty() || line[line.size() - 1] != ';')
-		throw InvalidFormat();
+		throw InvalidFormat("Config File: Missing ';' at end of line.");
 	line.erase(line.size() - 1);
 
 	std::istringstream	iss(line);
@@ -104,14 +104,14 @@ void ParseConfig::parseDirective(std::ifstream &fileStream, std::string &line, S
 	else if (var == "client_max_body_size")
 		handleClientSize(iss, config);
 	else
-		throw InvalidFormat();
+		throw InvalidFormat("Config File: Unknown directive in server block.");
 }
 
 void	ParseConfig::handleClientSize(std::istringstream &iss, ServerConfig &config)
 {
 	int value;
 	if (!(iss >> value) || value < 0)
-		throw InvalidFormat();
+		throw InvalidFormat("Config File: Invalid client_max_body_size.");
 	config.setClientMaxBodySize(static_cast<size_t>(value));
 }
 
@@ -125,7 +125,7 @@ void	ParseConfig::handleListen(std::istringstream &iss, ServerConfig &config)
 {
 	int value;
 	if (!(iss >> value) || value < 0 || value > 65535)
-		throw InvalidFormat();
+		throw InvalidFormat("Config File: Invalid port number.");
 	config.setPort(static_cast<unsigned short>(value));
 }
 
@@ -133,7 +133,7 @@ void	ParseConfig::handleSimpleDirective(const std::string &var, std::istringstre
 {
 	std::string value;
 	if (!(iss >> value))
-		throw InvalidFormat();
+		throw InvalidFormat("Config File: Missing value for " + var + ".");
 	if (var == "server_name") config.setServerName(value);
 	else if (var == "root") config.setRoot(value);
 	else config.setHost(value);
@@ -154,7 +154,7 @@ void	ParseConfig::handleErrorPage(std::istringstream &iss, ServerConfig &config)
 		args.push_back(arg);
 
 	if (args.size() < 2)
-		throw InvalidFormat();
+		throw InvalidFormat("Config File: Invalid error_page directive.");
 
 	std::string url = args.back();
 	args.pop_back();
@@ -162,21 +162,9 @@ void	ParseConfig::handleErrorPage(std::istringstream &iss, ServerConfig &config)
 		char *endptr;
 		long value = std::strtol(args[i].c_str(), &endptr, 10);
 		if (*endptr != '\0' || value < 0 || value > 65535)
-			throw InvalidFormat();
+			throw InvalidFormat("Config File: Invalid error code in error_page directive.");
 		config.addErrorPageBack(static_cast<unsigned short>(value), url);
 	}
-}
-
-std::string	ParseConfig::findValue(size_t pos, std::string line) {
-	size_t start = line.find_first_not_of(" \t", pos);
-	if (start == std::string::npos)
-		throw InvalidFormat();
-
-	size_t end = line.find_first_of(';', start);
-	if (end == std::string::npos)
-		throw InvalidFormat();
-
-	return (line.substr(start, end - start));
 }
 
 std::vector<ServerConfig>	ParseConfig::getConfigs() const {
@@ -184,9 +172,15 @@ std::vector<ServerConfig>	ParseConfig::getConfigs() const {
 }
 
 const char	*ParseConfig::CouldNotOpenFile::what() const throw() {
-	return "could not open file.";
+	return "Could not open configuration file.";
 }
 
+ParseConfig::InvalidFormat::InvalidFormat(std::string message) : message(message)
+{}
+
+ParseConfig::InvalidFormat::~InvalidFormat() throw()
+{}
+
 const char	*ParseConfig::InvalidFormat::what() const throw() {
-	return "invalid format.";
+	return this->message.c_str();
 }
