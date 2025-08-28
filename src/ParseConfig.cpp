@@ -126,6 +126,9 @@ void ParseConfig::parseDirective(std::vector<std::string> &conf_vec, size_t &i, 
 
 void	ParseConfig::handleClientSize(std::istringstream &iss, ServerConfig &config)
 {
+	if (config.getClientMaxBodySize() != 0)
+		throw InvalidFormat("Config File: Duplicate client_max_body_size directive.");
+
 	std::string value_str;
 	if (!(iss >> value_str))
 		throw InvalidFormat("Config File: Missing value for client_max_body_size.");
@@ -157,6 +160,9 @@ void	ParseConfig::handleLocation(std::vector<std::string> &conf_vec, size_t &i, 
 
 void	ParseConfig::handleListen(std::istringstream &iss, ServerConfig &config)
 {
+	if (config.getPort() != 0)
+		throw InvalidFormat("Config File: Duplicate listen directive.");
+
 	int value;
 	if (!(iss >> value) || value < 0 || value > 65535)
 		throw InvalidFormat("Config File: Invalid port number.");
@@ -165,6 +171,11 @@ void	ParseConfig::handleListen(std::istringstream &iss, ServerConfig &config)
 
 void	ParseConfig::handleSimpleDirective(const std::string &var, std::istringstream &iss, ServerConfig &config)
 {
+	if ((var == "server_name" && !config.getServerName().empty()) ||
+		(var == "root" && !config.getRoot().empty()) ||
+		(var == "host" && !config.getHost().empty()))
+		throw InvalidFormat("Config File: Duplicate " + var + " directive.");
+
 	std::string value;
 	if (!(iss >> value))
 		throw InvalidFormat("Config File: Missing value for " + var + ".");
@@ -175,6 +186,9 @@ void	ParseConfig::handleSimpleDirective(const std::string &var, std::istringstre
 
 void	ParseConfig::handleIndex(std::istringstream &iss, ServerConfig &config)
 {
+	if (!config.getIndex().empty())
+		throw InvalidFormat("Config File: Duplicate index directive.");
+
 	std::string value;
 	while (iss >> value)
 		config.addIndexBack(value);

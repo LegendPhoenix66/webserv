@@ -113,15 +113,24 @@ void	Location::parseDirective(const std::string &line) {
 	iss >> var;
 
 	switch (getDirectiveType(var)) {
-		case DIR_ROOT:
+		case DIR_ROOT: {
+			if (!this->root.empty())
+				throw InvalidFormat("Config File: Duplicate root directive.");
 			iss >> this->root;
 			break;
-		case DIR_CGI_PASS:
+		}
+		case DIR_CGI_PASS: {
+			if (!this->cgi_pass.empty())
+				throw InvalidFormat("Config File: Duplicate cgi_pass directive.");
 			iss >> this->cgi_pass;
 			break;
-		case DIR_CGI_PATH:
+		}
+		case DIR_CGI_PATH: {
+			if (!this->cgi_path.empty())
+				throw InvalidFormat("Config File: Duplicate cgi_path directive.");
 			iss >> this->cgi_path;
 			break;
+		}
 		case DIR_INDEX:
 			parseIndex(iss);
 			break;
@@ -136,17 +145,23 @@ void	Location::parseDirective(const std::string &line) {
 		case DIR_ALLOWED_METHODS:
 			parseAllowedMethods(iss);
 			break;
-		case DIR_RETURN:
+		case DIR_RETURN: {
 			if (!(iss >> this->return_dir.first >> this->return_dir.second))
 				throw InvalidFormat("Config File: Invalid return directive.");
 			break;
-		case DIR_UPLOAD_STORE:
+		}
+		case DIR_UPLOAD_STORE: {
+			if (!this->upload_store.empty())
+				throw InvalidFormat("Config File: Duplicate upload_store directive.");
 			iss >> this->upload_store;
 			break;
+		}
 		case DIR_CLIENT_MAX_BODY_SIZE:
 			parseClientSize(iss);
 			break;
 		case DIR_LIMIT_EXCEPT: {
+			if (!this->limit_except.empty())
+				throw InvalidFormat("Config File: Duplicate limit_except directive.");
 			std::string value;
 			while (iss >> value)
 				this->limit_except.push_back(value);
@@ -158,6 +173,9 @@ void	Location::parseDirective(const std::string &line) {
 }
 
 void	Location::parseClientSize(std::istringstream &iss) {
+	if (this->client_max_body_size != 0)
+		throw InvalidFormat("Config File: Duplicate client_max_body_size directive.");
+
 	std::string value_str;
 	if (!(iss >> value_str))
 		throw InvalidFormat("Config File: Missing value for client_max_body_size.");
@@ -182,6 +200,8 @@ void	Location::parseClientSize(std::istringstream &iss) {
 
 // helper to handle index parsing
 void Location::parseIndex(std::istringstream &iss) {
+	if (!this->index.empty())
+		throw InvalidFormat("Config File: Duplicate index directive.");
 	std::string value;
 	while (iss >> value)
 		this->index.push_back(value);
@@ -189,6 +209,8 @@ void Location::parseIndex(std::istringstream &iss) {
 
 // helper to handle allowed_methods parsing
 void Location::parseAllowedMethods(std::istringstream &iss) {
+	if (!this->allowed_methods.empty())
+		throw InvalidFormat("Config File: Duplicate allowed_methods directive.");
 	std::string value;
 	while (iss >> value)
 		this->allowed_methods.push_back(value);
