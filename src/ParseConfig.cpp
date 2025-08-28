@@ -33,7 +33,11 @@ ParseConfig::ParseConfig(char *file) {
 		parseHeader(conf_vec, i);
 		parseConfigBlock(conf_vec, i);
 	}
-	fileStream.close();
+	for (size_t j = 0; j < configs.size(); ++j) {
+		if (configs[j].getPort() == 0) {
+			throw InvalidFormat("Config File: Missing or invalid listen directive in server block.");
+		}
+	}
 }
 
 void ParseConfig::parseHeader(std::vector<std::string> &conf_vec, size_t &i)
