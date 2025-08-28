@@ -95,6 +95,8 @@ private:
 	 */
 	void handleClientSize(std::istringstream &iss, ServerConfig &config);
 
+	void	checkValues();
+
 public:
 	/**
 	 * @brief Default constructor.

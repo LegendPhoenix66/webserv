@@ -10,6 +10,7 @@
 #include <exception>
 #include <sstream>
 #include <utility>
+#include <set>
 
 #include <stdint.h>
 

@@ -34,6 +34,38 @@ ParseConfig::ParseConfig(char *file) {
 		parseConfigBlock(conf_vec, i);
 	}
 	fileStream.close();
+	checkValues();
+}
+
+void	ParseConfig::checkValues()
+{
+	for (size_t j = 0; j < configs.size(); ++j) {
+		if (configs[j].getPort() == 0)
+			throw InvalidFormat("Config File: Missing or invalid listen directive in server block.");
+		else if (configs[j].getRoot().empty())
+			throw InvalidFormat("Config File: Missing root directive in server block.");
+		else if (configs[j].getHost().empty())
+			throw InvalidFormat("Config File: Missing host directive in server block.");
+		else {
+			const std::vector<Location>	&locs = configs[j].getLocations();
+			bool	root_defined = false;
+			std::set<std::string>	paths;
+			for (size_t k = 0; k < locs.size(); k++) {
+				const std::string &path = locs[k].getPath();
+				std::string	normalised_path = path;
+				if (normalised_path.size() > 1 && normalised_path[normalised_path.size() - 1] == '/')
+					normalised_path.erase(normalised_path.size() - 1);
+
+				if (!paths.insert(normalised_path).second)
+					throw InvalidFormat("Config File: Duplicate location path '" + path + "' in server block.");
+
+				if (path == "/")
+					root_defined = true;
+			}
+			if (!root_defined)
+				throw InvalidFormat("Config File: Missing location '/' block in server block.");
+		}
+	}
 }
 
 void ParseConfig::parseHeader(std::vector<std::string> &conf_vec, size_t &i)
