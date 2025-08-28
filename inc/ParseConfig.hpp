@@ -29,14 +29,14 @@ private:
 	 * @param fileStream The input file stream.
 	 * @throws InvalidFormat if the header is invalid.
 	 */
-	static void parseHeader(std::ifstream &fileStream);
+	static void parseHeader(std::vector<std::string> &conf_vec, size_t &i);
 
 	/**
 	 * @brief Parses the main configuration block.
 	 * @param fileStream The input file stream.
 	 * @throws InvalidFormat if the block is invalid.
 	 */
-	void parseConfigBlock(std::ifstream &fileStream);
+	void parseConfigBlock(std::vector<std::string> &conf_vec, size_t &i);
 
 	/**
 	 * @brief Trims whitespace from both ends of a line.
@@ -46,19 +46,19 @@ private:
 
 	/**
 	 * @brief Parses a single configuration directive line.
-	 * @param fileStream The input file stream.
-	 * @param line The directive line to parse.
+	 * @param conf_vec The input file stream.
+	 * @param i The directive line to parse.
 	 * @throws InvalidFormat if the directive is invalid.
 	 */
-	void parseDirective(std::ifstream &fileStream, std::string &line, ServerConfig &config);
+	void parseDirective(std::vector<std::string> &conf_vec, size_t &i, ServerConfig &config);
 
 	/**
 	 * @brief Handles parsing of a location block.
-	 * @param fileStream The input file stream.
-	 * @param line The location directive line.
+	 * @param conf_vec The input file stream.
+	 * @param i The location directive line.
 	 * @throws InvalidFormat if the location block is invalid.
 	 */
-	void handleLocation(std::ifstream &fileStream, std::string &line, ServerConfig &config);
+	void handleLocation(std::vector<std::string> &conf_vec, size_t &i, ServerConfig &config);
 
 	/**
 	 * @brief Handles the 'listen' directive.

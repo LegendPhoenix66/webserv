@@ -14,24 +14,24 @@ Location::Location(const Location &other)
 		  upload_store(other.upload_store),
 		  client_max_body_size(other.client_max_body_size) {}
 
-Location &Location::operator=(Location copy) {
+Location	&Location::operator=(Location copy) {
 	this->swap(copy);
 	return *this;
 }
 
 Location::~Location() {}
 
-Location::Location(std::ifstream &file, std::string line) : autoindex(false), client_max_body_size(0) {
-	parseDeclaration(file, line);
+Location::Location(std::vector<std::string> &conf_vec, size_t &i) : autoindex(false), client_max_body_size(0) {
+	parseDeclaration(conf_vec, i);
 
 	std::string trimmed_line;
-	while (std::getline(file, line)) {
-		size_t first = line.find_first_not_of(" \t\n\r");
+	while (++i < conf_vec.size()) {
+		size_t first = conf_vec[i].find_first_not_of(" \t\n\r");
 		if (std::string::npos == first) {
 			trimmed_line = "";
 		} else {
-			size_t last = line.find_last_not_of(" \t\n\r");
-			trimmed_line = line.substr(first, (last - first + 1));
+			size_t last = conf_vec[i].find_last_not_of(" \t\n\r");
+			trimmed_line = conf_vec[i].substr(first, (last - first + 1));
 		}
 
 		if (trimmed_line.empty() || trimmed_line[0] == '#')
@@ -45,22 +45,42 @@ Location::Location(std::ifstream &file, std::string line) : autoindex(false), cl
 }
 
 // helper function to parse the `location /path {` line
-void Location::parseDeclaration(std::ifstream &file, std::string &line) {
-	std::istringstream ss(line);
-	std::string keyword;
+void	Location::parseDeclaration(std::vector<std::string> &conf_vec, size_t &i) {
+	std::istringstream	ss(conf_vec[i]);
+	std::string			keyword;
+	std::string			token;
 
 	ss >> keyword;
 	if (keyword != "location")
 		throw InvalidFormat("Config File: Invalid location declaration.");
 
-	ss >> this->path;
+	ss >> token;
+	if (token == "~") {
+		std::string	tmp;
+		std::getline(ss, tmp, '{');
+
+		size_t	first = tmp.find_first_not_of(" \t");
+		size_t	last = tmp.find_last_not_of(" \t");
+		if (first == std::string::npos)
+			this->path = "";
+		else
+			this->path = token + " " + tmp.substr(first, last - first + 1);
+		ss.putback('{');
+	}
+	else
+		this->path = token;
+
 	if (this->path.empty() || this->path == "{")
 		throw InvalidFormat("Config File: Missing or invalid path in location declaration.");
 
-	if (line.find('{') == std::string::npos) {
-		if (!std::getline(file, line) || line.find('{') == std::string::npos) {
+	ss >> token;
+	if (token == "{")
+		return;
+
+	if (conf_vec[i].find('{') == std::string::npos) {
+		i++;
+		if (i >= conf_vec.size() || conf_vec[i].find('{') == std::string::npos)
 			throw InvalidFormat("Config File: Missing '{' at start of location block.");
-		}
 	}
 }
 
@@ -74,10 +94,11 @@ Location::DirectiveType Location::getDirectiveType(const std::string &var) {
 	if (var == "return") return DIR_RETURN;
 	if (var == "upload_store") return DIR_UPLOAD_STORE;
 	if (var == "client_max_body_size") return DIR_CLIENT_MAX_BODY_SIZE;
+	if (var == "limit_except") return DIR_LIMIT_EXCEPT;
 	return DIR_UNKNOWN;
 }
 
-void Location::parseDirective(const std::string &line) {
+void	Location::parseDirective(const std::string &line) {
 	if (line.empty() || line[line.size() - 1] != ';')
 		throw InvalidFormat("Config File: Missing ';' at end of line.");
 
@@ -117,14 +138,40 @@ void Location::parseDirective(const std::string &line) {
 			iss >> this->upload_store;
 			break;
 		case DIR_CLIENT_MAX_BODY_SIZE:
-			int value;
-			if (!(iss >> value) || value < 0)
-				throw InvalidFormat("Config File: Invalid client_max_body_size.");
-			this->client_max_body_size = static_cast<size_t>(value);
+			parseClientSize(iss);
 			break;
+		case DIR_LIMIT_EXCEPT: {
+			std::string value;
+			while (iss >> value)
+				this->limit_except.push_back(value);
+			break;
+		}
 		default:
 			throw InvalidFormat("Config File: Unknown directive in location block.");
 	}
+}
+
+void	Location::parseClientSize(std::istringstream &iss) {
+	std::string value_str;
+	if (!(iss >> value_str))
+		throw InvalidFormat("Config File: Missing value for client_max_body_size.");
+
+	char *endptr;
+	long value = std::strtol(value_str.c_str(), &endptr, 10);
+	if (value < 0 || (value == 0 && endptr == value_str.c_str()))
+		throw InvalidFormat("Config File: Invalid value for client_max_body_size.");
+
+	size_t	multiplier = 1;
+	if (*endptr != '\0') {
+		if ((*endptr == 'k' || *endptr == 'K') && *(endptr + 1) == '\0')
+			multiplier *= 1024;
+		else if ((*endptr == 'm' || *endptr == 'M') && *(endptr + 1) == '\0')
+			multiplier *= 1024 * 1024;
+		else
+			throw InvalidFormat("Config File: Invalid value for client_max_body_size.");
+	}
+
+	this->client_max_body_size = static_cast<size_t>(value) * multiplier;
 }
 
 // helper to handle index parsing

@@ -24,48 +24,65 @@ ParseConfig::ParseConfig(char *file) {
 	fileStream.open(file);
 	if (!fileStream.is_open())
 		throw CouldNotOpenFile();
-	while (fileStream.peek() != EOF) {
-		parseHeader(fileStream);
-		parseConfigBlock(fileStream);
+	std::vector<std::string>	conf_vec;
+	std::string					line;
+	while (std::getline(fileStream, line))
+		conf_vec.push_back(line);
+	size_t i = 0;
+	while (i < conf_vec.size()) {
+		parseHeader(conf_vec, i);
+		parseConfigBlock(conf_vec, i);
 	}
 	fileStream.close();
 }
 
-void ParseConfig::parseHeader(std::ifstream &fileStream) {
-	std::string	line;
-	while (std::getline(fileStream, line)) {
-		trim(line);
-		if (line.empty() || line[0] == '#')
+void ParseConfig::parseHeader(std::vector<std::string> &conf_vec, size_t &i)
+{
+	for (; i < conf_vec.size(); i++) {
+		trim(conf_vec[i]);
+		if (conf_vec[i].empty() || conf_vec[i][0] == '#')
 			continue;
 		break;
 	}
-	std::istringstream ss(line);
+
+	if (i >= conf_vec.size())
+		throw InvalidFormat("Config File: Empty file.");
+
+	std::istringstream ss(conf_vec[i]);
 	std::string keyword;
+	std::string	temp;
 	ss >> keyword;
 	if (keyword != "server")
 		throw InvalidFormat("Config File: Invalid header.");
-	if (line.find('{') == std::string::npos) {
-		if (!std::getline(fileStream, line) || line.find('{') == std::string::npos)
+
+	if (conf_vec[i].find('{') == std::string::npos) {
+		i++;
+		if (i >= conf_vec.size())
+			throw InvalidFormat("Config File: Missing server block.");
+		trim(conf_vec[i]);
+		if (conf_vec[i] != "{")
 			throw InvalidFormat("Config File: Missing '{' at start of server block.");
 	}
+	i++;
 }
 
-void ParseConfig::parseConfigBlock(std::ifstream &fileStream) {
-	std::string		line;
+void ParseConfig::parseConfigBlock(std::vector<std::string> &conf_vec, size_t &i)
+{
 	ServerConfig	config;
 	bool			end = false;
 
-	while (std::getline(fileStream, line)) {
-		trim(line);
-		if (line.empty() || line[0] == '#')
+	for (; i < conf_vec.size(); i++) {
+		trim(conf_vec[i]);
+		if (conf_vec[i].empty() || conf_vec[i][0] == '#')
 			continue;
-		if (line[0] == '}') {
+		if (conf_vec[i][0] == '}') {
 			this->configs.push_back(config);
 			end = true;
 			break;
 		}
-		parseDirective(fileStream, line, config);
+		parseDirective(conf_vec, i, config);
 	}
+	i++;
 
 	if (!end)
 		throw InvalidFormat("Config File: Missing '}' at end of server block.");
@@ -76,20 +93,20 @@ void ParseConfig::trim(std::string &line) {
 	line.erase(line.find_last_not_of(" \t\n\r") + 1);
 }
 
-void ParseConfig::parseDirective(std::ifstream &fileStream, std::string &line, ServerConfig &config)
+void ParseConfig::parseDirective(std::vector<std::string> &conf_vec, size_t &i, ServerConfig &config)
 {
-	std::string	first_word = line.substr(0, line.find_first_of(" \t"));
+	std::string	first_word = conf_vec[i].substr(0, conf_vec[i].find_first_of(" \t"));
 
 	if (first_word == "location") {
-		handleLocation(fileStream, line, config);
+		handleLocation(conf_vec, i, config);
 		return;
 	}
 
-	if (line.empty() || line[line.size() - 1] != ';')
+	if (conf_vec[i].empty() || conf_vec[i][conf_vec[i].size() - 1] != ';')
 		throw InvalidFormat("Config File: Missing ';' at end of line.");
-	line.erase(line.size() - 1);
+	conf_vec[i].erase(conf_vec[i].size() - 1);
 
-	std::istringstream	iss(line);
+	std::istringstream	iss(conf_vec[i]);
 	std::string			var;
 	iss >> var;
 
@@ -109,15 +126,32 @@ void ParseConfig::parseDirective(std::ifstream &fileStream, std::string &line, S
 
 void	ParseConfig::handleClientSize(std::istringstream &iss, ServerConfig &config)
 {
-	int value;
-	if (!(iss >> value) || value < 0)
-		throw InvalidFormat("Config File: Invalid client_max_body_size.");
-	config.setClientMaxBodySize(static_cast<size_t>(value));
+	std::string value_str;
+	if (!(iss >> value_str))
+		throw InvalidFormat("Config File: Missing value for client_max_body_size.");
+
+	char	*endptr;
+	long long value = std::strtoll(value_str.c_str(), &endptr, 10);
+
+	if (endptr == value_str.c_str() || value < 0)
+		throw InvalidFormat("Config File: Invalid value for client_max_body_size.");
+
+	size_t	multiplier = 1;
+	if (*endptr != '\0') {
+		if ((*endptr == 'k' || *endptr == 'K') && *(endptr + 1) == '\0')
+			multiplier *= 1024;
+		else if ((*endptr == 'm' || *endptr == 'M') && *(endptr + 1) == '\0')
+			multiplier *= 1024 * 1024;
+		else
+			throw InvalidFormat("Config File: Invalid value for client_max_body_size.");
+	}
+
+	config.setClientMaxBodySize(static_cast<size_t>(value) * multiplier);
 }
 
-void	ParseConfig::handleLocation(std::ifstream &fileStream, std::string &line, ServerConfig &config)
+void	ParseConfig::handleLocation(std::vector<std::string> &conf_vec, size_t &i, ServerConfig &config)
 {
-	Location loc(fileStream, line);
+	Location	loc(conf_vec, i);
 	config.addLocationBack(loc);
 }
 
