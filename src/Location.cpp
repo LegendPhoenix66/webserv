@@ -25,6 +25,7 @@ Location::Location(std::vector<std::string> &conf_vec, size_t &i) : autoindex(fa
 	parseDeclaration(conf_vec, i);
 
 	std::string trimmed_line;
+	bool		end = false;
 	while (++i < conf_vec.size()) {
 		size_t first = conf_vec[i].find_first_not_of(" \t\n\r");
 		if (std::string::npos == first) {
@@ -37,11 +38,16 @@ Location::Location(std::vector<std::string> &conf_vec, size_t &i) : autoindex(fa
 		if (trimmed_line.empty() || trimmed_line[0] == '#')
 			continue;
 
-		if (trimmed_line[0] == '}')
+		if (trimmed_line[0] == '}') {
+			end = true;
 			break;
+		}
 
 		parseDirective(trimmed_line);
 	}
+
+	if (!end)
+		throw InvalidFormat("Config File: Missing '}' at end of location block.");
 }
 
 // helper function to parse the `location /path {` line
