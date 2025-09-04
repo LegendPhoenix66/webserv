@@ -25,6 +25,16 @@ private:
     int listen_fd;
     /** @brief Configuration options for this server instance. */
     ServerConfig config;
+    /** @brief Tracks all sockets (listening + clients). */
+    std::vector<pollfd> poll_fds;
+    /** @brief Per-client state (input/output buffers and progress). */
+    struct ClientState {
+        std::string in;
+        std::string out;
+        size_t sent;
+        ClientState() : in(), out(), sent(0) {}
+    };
+    std::map<int, ClientState> client_states;
 
     /**
      * @brief Swaps the contents of this Server with another.
