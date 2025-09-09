@@ -49,6 +49,7 @@ private:
      * and processes client requests according to the server configuration.
      */
     void runEventLoop();
+	void	sendErrorResponse(int client_fd, int status_code);
 
 public:
     /** @brief Default constructor. Initializes an empty server. */
