@@ -2,7 +2,7 @@
 #include "../inc/ParseConfig.hpp"
 #include "../inc/Server.hpp"
 
-void print_conf(const ServerConfig &conf, size_t n) {
+/*void print_conf(const ServerConfig &conf, size_t n) {
 	std::cout << "Server Configuration " << n << ":" << std::endl;
 	std::cout << "Port: " << conf.getPort() << std::endl;
 	std::cout << "Server Name: " << conf.getServerName() << std::endl;
@@ -58,7 +58,7 @@ void print_conf(const ServerConfig &conf, size_t n) {
 			std::cout << "  " << it->first << ": " << it->second << std::endl;
 	}
 	std::cout << "----------------------------------------" << std::endl;
-}
+}*/
 
 int check_args(int argc) {
 	if (argc < 2) {
@@ -89,8 +89,8 @@ int main(int argc, char **argv) {
 
 	try {
 		std::vector<ServerConfig> configs = init_config(argv[1]);
-		for (size_t i = 0; i < configs.size(); i++)
-			print_conf(configs[i], i + 1);
+		/*for (size_t i = 0; i < configs.size(); i++)
+			print_conf(configs[i], i + 1);*/
 		start_server(configs);
 	}
 	catch (std::exception &e) {

@@ -2,6 +2,7 @@
 #define WEBSERV_SERVER_HPP
 
 #include "ServerConfig.hpp"
+#include "HttpStatusCodes.hpp"
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <poll.h>

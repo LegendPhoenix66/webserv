@@ -5,7 +5,8 @@ CFILES = main.cpp \
 		ParseConfig.cpp \
 		ServerConfig.cpp \
 		Location.cpp \
-		Server.cpp
+		Server.cpp \
+		HttpStatusCodes.cpp
 OFILES = $(addprefix $(OBJ_DIR)/,$(CFILES:.cpp=.o))
 CC = c++
 CFLAGS = -Wall -Werror -Wextra -std=c++98 -g -fsanitize=address
