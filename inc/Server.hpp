@@ -50,6 +50,17 @@ private:
      */
     void runEventLoop();
 
+    // Helper methods to keep the event loop readable and maintainable
+    void addListenSocketToPoll();
+    void handleListenEvent();
+    void handleClientReadable(size_t &i);
+    void handleClientWritable(size_t &i);
+    void handleClientErrorOrHangup(size_t &i);
+    void addClient(int client_fd);
+    void removeClientAtIndex(size_t &i);
+
+    static std::string buildHttpResponse(const std::string &method, const std::string &path);
+
 public:
     /** @brief Default constructor. Initializes an empty server. */
     Server();
