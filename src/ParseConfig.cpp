@@ -33,6 +33,7 @@ ParseConfig::ParseConfig(char *file) {
 		parseHeader(conf_vec, i);
 		parseConfigBlock(conf_vec, i);
 	}
+
 	fileStream.close();
 	checkValues();
 }
