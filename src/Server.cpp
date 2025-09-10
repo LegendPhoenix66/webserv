@@ -29,11 +29,17 @@ void Server::swap(Server &other) {
 }
 
 void Server::start() {
+	if (setupListenSocket() >= 0) {
+		runEventLoop();
+	}
+}
+
+int Server::setupListenSocket() {
 	// Create socket
 	listen_fd = socket(AF_INET, SOCK_STREAM, 0);
 	if (listen_fd < 0) {
 		std::cerr << "socket() failed" << std::endl;
-		return;
+		return -1;
 	}
 
 	// Set non-blocking
@@ -47,20 +53,23 @@ void Server::start() {
 	sockaddr_in addr;
 	std::memset(&addr, 0, sizeof(addr));
 	addr.sin_family = AF_INET;
-	addr.sin_addr.s_addr = INADDR_ANY; //config.getHost();
+	addr.sin_addr.s_addr = INADDR_ANY; // TODO: apply config.getHost() when ipv4 parsing available
 	addr.sin_port = htons(config.getPort());
 	if (bind(listen_fd, (struct sockaddr *) &addr, sizeof(addr)) < 0) {
 		std::cerr << "bind() failed" << std::endl;
-		return;
+		close(listen_fd);
+		listen_fd = -1;
+		return -1;
 	}
 
 	// Listen
 	if (listen(listen_fd, SOMAXCONN) < 0) {
 		std::cerr << "listen() failed" << std::endl;
-		return;
+		close(listen_fd);
+		listen_fd = -1;
+		return -1;
 	}
-
-	runEventLoop();
+	return listen_fd;
 }
 
 void Server::runEventLoop() {

@@ -89,6 +89,18 @@ public:
      * @brief Starts the server: sets up the socket and begins accepting connections.
      */
     void start();
+
+    /**
+     * @brief Create, bind, and listen on the configured address. Non-blocking.
+     * @return listening fd on success (>=0), or -1 on failure.
+     */
+    int setupListenSocket();
+
+    /** @return the listening fd (valid after setupListenSocket). */
+    int getListenFd() const { return listen_fd; }
+
+    /** @return const reference to this server's config. */
+    const ServerConfig& getConfig() const { return config; }
 };
 
 #endif //WEBSERV_SERVER_HPP
