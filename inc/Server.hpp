@@ -60,7 +60,6 @@ private:
     void addClient(int client_fd);
     void removeClientAtIndex(size_t &i);
 
-    static std::string buildHttpResponse(const std::string &method, const std::string &path);
 
 public:
     /** @brief Default constructor. Initializes an empty server. */
@@ -101,6 +100,9 @@ public:
 
     /** @return const reference to this server's config. */
     const ServerConfig& getConfig() const { return config; }
+
+    /** Utility: build a simple HTTP response used by the baseline server */
+    static std::string buildHttpResponse(const std::string &method, const std::string &path);
 };
 
 #endif //WEBSERV_SERVER_HPP
