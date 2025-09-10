@@ -53,6 +53,16 @@ bool Request::parseStartLineAndHeaders() {
         if (v.find("close") != std::string::npos) _keep_alive = false;
     }
 
+    // Validate HTTP version and Host header (HTTP/1.1 requires Host)
+    if (_version != "HTTP/1.1") {
+        _state = Error;
+        return true;
+    }
+    if (_headers.find("host") == _headers.end()) {
+        _state = Error;
+        return true;
+    }
+
     // body framing
     std::map<std::string,std::string>::const_iterator itTE = _headers.find("transfer-encoding");
     if (itTE != _headers.end()) {

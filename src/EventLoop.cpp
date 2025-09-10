@@ -1,5 +1,6 @@
 #include "../inc/EventLoop.hpp"
 #include "../inc/Server.hpp" // for Server::buildHttpResponse signature
+#include "../inc/Response.hpp"
 #include <fcntl.h>
 #include <unistd.h>
 #include <sys/socket.h>
@@ -75,7 +76,11 @@ void EventLoop::onClientReadable(size_t idx) {
     if (n > 0) {
         ClientState &st = _clients[_pfds[idx].fd];
         Request::State state = st.req.feed(std::string(buf, n));
-        if (state == Request::Ready) {
+        if (state == Request::Error) {
+            st.out = Response::buildErrorHtml(400, std::string("Bad Request"));
+            st.sent = 0;
+            _pfds[idx].events = POLLOUT;
+        } else if (state == Request::Ready) {
             st.out = Server::buildHttpResponse(st.req.method(), st.req.target());
             st.sent = 0;
             _pfds[idx].events = POLLOUT;
