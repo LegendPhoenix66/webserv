@@ -5,6 +5,7 @@
 #include <map>
 #include <string>
 #include <poll.h>
+#include "Request.hpp"
 
 class ServerConfig; // forward decl
 
@@ -25,10 +26,10 @@ public:
 
 private:
     struct ClientState {
-        std::string in;
+        Request req;
         std::string out;
         size_t sent;
-        ClientState() : in(), out(), sent(0) {}
+        ClientState() : req(), out(), sent(0) {}
     };
 
     std::vector<pollfd> _pfds;

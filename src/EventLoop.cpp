@@ -70,18 +70,13 @@ void EventLoop::removeAtIndex(size_t &idx) {
 }
 
 void EventLoop::onClientReadable(size_t idx) {
-    char buf[1024];
+    char buf[2048];
     int n = recv(_pfds[idx].fd, buf, sizeof(buf), 0);
     if (n > 0) {
         ClientState &st = _clients[_pfds[idx].fd];
-        st.in.append(buf, n);
-        if (st.in.find("\r\n\r\n") != std::string::npos) {
-            size_t line_end = st.in.find("\r\n");
-            std::string req_line = (line_end != std::string::npos) ? st.in.substr(0, line_end) : st.in;
-            std::istringstream iss(req_line);
-            std::string method, path, version;
-            iss >> method >> path >> version;
-            st.out = Server::buildHttpResponse(method, path);
+        Request::State state = st.req.feed(std::string(buf, n));
+        if (state == Request::Ready) {
+            st.out = Server::buildHttpResponse(st.req.method(), st.req.target());
             st.sent = 0;
             _pfds[idx].events = POLLOUT;
         }
