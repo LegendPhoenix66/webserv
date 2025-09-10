@@ -6,6 +6,7 @@ CFILES = main.cpp \
 		ServerConfig.cpp \
 		Location.cpp \
 		Server.cpp \
+		EventLoop.cpp \
 		HttpStatusCodes.cpp
 OFILES = $(addprefix $(OBJ_DIR)/,$(CFILES:.cpp=.o))
 CC = c++
