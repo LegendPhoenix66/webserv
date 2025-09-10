@@ -5,7 +5,6 @@
 #include "HttpStatusCodes.hpp"
 #include <sys/types.h>
 #include <sys/socket.h>
-#include <poll.h>
 #include <fcntl.h>
 #include <netinet/in.h>
 #include <cstring>
@@ -26,16 +25,6 @@ private:
     int listen_fd;
     /** @brief Configuration options for this server instance. */
     ServerConfig config;
-    /** @brief Tracks all sockets (listening + clients). */
-    std::vector<pollfd> poll_fds;
-    /** @brief Per-client state (input/output buffers and progress). */
-    struct ClientState {
-        std::string in;
-        std::string out;
-        size_t sent;
-        ClientState() : in(), out(), sent(0) {}
-    };
-    std::map<int, ClientState> client_states;
 
     /**
      * @brief Swaps the contents of this Server with another.
@@ -43,22 +32,7 @@ private:
      */
     void swap(Server &other);
 
-    /**
-     * @brief Runs the main event loop for handling incoming connections and requests.
-     *
-     * This method monitors sockets for activity, accepts new connections,
-     * and processes client requests according to the server configuration.
-     */
-    void runEventLoop();
 
-    // Helper methods to keep the event loop readable and maintainable
-    void addListenSocketToPoll();
-    void handleListenEvent();
-    void handleClientReadable(size_t &i);
-    void handleClientWritable(size_t &i);
-    void handleClientErrorOrHangup(size_t &i);
-    void addClient(int client_fd);
-    void removeClientAtIndex(size_t &i);
 
 
 public:

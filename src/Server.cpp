@@ -1,5 +1,6 @@
 #include "../inc/Server.hpp"
 #include <sstream>
+#include <fstream>
 #include <arpa/inet.h>
 #include <netdb.h>
 
@@ -31,9 +32,8 @@ void Server::swap(Server &other) {
 }
 
 void Server::start() {
-	if (setupListenSocket() >= 0) {
-		runEventLoop();
-	}
+	// Non-blocking initializer: only set up the listening socket.
+	setupListenSocket();
 }
 
 int Server::setupListenSocket() {
@@ -94,114 +94,13 @@ int Server::setupListenSocket() {
 	return listen_fd;
 }
 
-void Server::runEventLoop() {
-	addListenSocketToPoll();
 
-	while (true) {
-		int ret = poll(&poll_fds[0], poll_fds.size(), -1);
-		if (ret < 0) {
-			std::cerr << "poll() failed" << std::endl;
-			break;
-		}
-		for (size_t i = 0; i < poll_fds.size(); ++i) {
-			if (poll_fds[i].revents & POLLIN) {
-				if (poll_fds[i].fd == listen_fd) {
-					handleListenEvent();
-				} else {
-					handleClientReadable(i);
-				}
-			} else if (poll_fds[i].revents & POLLOUT) {
-				handleClientWritable(i);
-			} else if (poll_fds[i].revents & (POLLERR | POLLHUP | POLLNVAL)) {
-				handleClientErrorOrHangup(i);
-			}
-		}
-	}
-	close(listen_fd);
-}
 
-void Server::addListenSocketToPoll() {
-	pollfd listen_pollfd;
-	listen_pollfd.fd = listen_fd;
-	listen_pollfd.events = POLLIN;
-	poll_fds.push_back(listen_pollfd);
-}
 
-void Server::handleListenEvent() {
-	// Accept new client
-	int client_fd = accept(listen_fd, NULL, NULL);
-	if (client_fd >= 0) {
-		addClient(client_fd);
-	}
-}
 
-void Server::addClient(int client_fd) {
-	fcntl(client_fd, F_SETFL, O_NONBLOCK);
-	pollfd client_pollfd;
-	client_pollfd.fd = client_fd;
-	client_pollfd.events = POLLIN;
-	poll_fds.push_back(client_pollfd);
-	client_states[client_fd] = ClientState();
-}
 
-void Server::removeClientAtIndex(size_t &i) {
-	close(poll_fds[i].fd);
-	client_states.erase(poll_fds[i].fd);
-	poll_fds.erase(poll_fds.begin() + i);
-	if (i > 0) {
-		--i; // adjust index since current element was erased
-	}
-}
 
-void Server::handleClientReadable(size_t &i) {
-	// Read from client
-	char buffer[1024];
-	int n = recv(poll_fds[i].fd, buffer, sizeof(buffer), 0);
-	if (n > 0) {
-		ClientState &st = client_states[poll_fds[i].fd];
-		st.in.append(buffer, n);
-		// Check for end of headers
-		if (st.in.find("\r\n\r\n") != std::string::npos) {
-			size_t line_end = st.in.find("\r\n");
-			std::string req_line = (line_end != std::string::npos) ? st.in.substr(0, line_end) : st.in;
-			std::istringstream iss(req_line);
-			std::string method, path, version;
-			iss >> method >> path >> version;
 
-			st.out = buildHttpResponse(method, path);
-			st.sent = 0;
-			poll_fds[i].events = POLLOUT;
-		}
-	} else {
-		// Client disconnected or error
-		removeClientAtIndex(i);
-	}
-}
-
-void Server::handleClientWritable(size_t &i) {
-	// Send response
-	ClientState &st = client_states[poll_fds[i].fd];
-	const std::string &out = st.out;
-	if (st.sent < out.size()) {
-		int n = send(poll_fds[i].fd, out.c_str() + st.sent, out.size() - st.sent, 0);
-		if (n > 0) {
-			st.sent += static_cast<size_t>(n);
-		} else {
-			// Error while sending, close connection
-			removeClientAtIndex(i);
-			return;
-		}
-	}
-	if (st.sent >= st.out.size()) {
-		// Response fully sent: close connection
-		removeClientAtIndex(i);
-	}
-}
-
-void Server::handleClientErrorOrHangup(size_t &i) {
-	// Error or hangup
-	removeClientAtIndex(i);
-}
 
 /*std::string Server::buildHttpResponse(const std::string &method, const std::string &path)
 {
