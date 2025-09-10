@@ -183,54 +183,66 @@ std::string	Server::buildHttpResponse(const std::string &method, const std::stri
 {
 	std::string			body;
 	HttpStatusCode::e	status_code = HttpStatusCode::OK;
+	bool				add_allow = false;
 
-	if (method != "GET" && method != "POST" && method != "DELETE")
+	if (method != "GET" && method != "POST" && method != "DELETE") {
 		status_code = HttpStatusCode::MethodNotAllowed;
+		add_allow = true;
+	}
 	else if (method == "GET") {
 		const std::string root = (cfg && !cfg->getRoot().empty()) ? cfg->getRoot() : std::string(".");
-		std::string file_path;
+		std::string req_path = path.empty() ? "/" : path;
 
-		if (path == "/") {
-			bool served = false;
-			if (cfg) {
-				std::vector<std::string> idx = cfg->getIndex();
-				for (size_t i = 0; i < idx.size(); ++i) {
-					std::string candidate = root + "/" + idx[i];
-					std::ifstream f(candidate.c_str());
+		// Basic traversal guard
+		if (req_path.find("..") != std::string::npos) {
+			status_code = HttpStatusCode::Forbidden;
+		} else {
+			if (req_path.empty() || req_path[0] != '/') req_path.insert(req_path.begin(), '/');
+			std::string fs_path = root + req_path;
+
+			struct stat st;
+			if (stat(fs_path.c_str(), &st) == 0) {
+				if (S_ISDIR(st.st_mode)) {
+					bool served = false;
+					if (cfg) {
+						std::vector<std::string> idx = cfg->getIndex();
+						for (size_t i = 0; i < idx.size(); ++i) {
+							std::string candidate = fs_path;
+							if (!candidate.empty() && candidate[candidate.size()-1] != '/')
+								candidate += "/";
+							candidate += idx[i];
+							std::ifstream f(candidate.c_str());
+							if (f.good()) {
+								body = readFile(candidate);
+								status_code = HttpStatusCode::OK;
+								served = true;
+								break;
+							}
+						}
+					}
+					if (!served) {
+						status_code = HttpStatusCode::Forbidden;
+					}
+				} else {
+					std::ifstream f(fs_path.c_str());
 					if (f.good()) {
-						body = readFile(candidate);
+						body = readFile(fs_path);
 						status_code = HttpStatusCode::OK;
-						served = true;
-						break;
+					} else {
+						status_code = HttpStatusCode::NotFound;
 					}
 				}
-			}
-			if (!served) {
-				file_path = root + "/index.html";
-				std::ifstream f(file_path.c_str());
-				if (f.good()) {
-					body = readFile(file_path);
-					status_code = HttpStatusCode::OK;
-				}
-				else
-					status_code = HttpStatusCode::NotFound;
-			}
-		}
-		else {
-			file_path = root + path;
-			std::ifstream f(file_path.c_str());
-			if (f.good()) {
-				body = readFile(file_path);
-				status_code = HttpStatusCode::OK;
-			}
-			else
+			} else {
 				status_code = HttpStatusCode::NotFound;
+			}
 		}
 	}
-	else if (method == "POST" || method == "DELETE")
+	else if (method == "POST" || method == "DELETE") {
 		status_code = HttpStatusCode::NotImplemented;
-	else
+	}
+	else {
 		status_code = HttpStatusCode::InternalServerError;
+	}
 
 	if (status_code != HttpStatusCode::OK && body.empty()) {
 		std::ostringstream error_body;
@@ -245,6 +257,9 @@ std::string	Server::buildHttpResponse(const std::string &method, const std::stri
 	oss << "HTTP/1.1 " << statusCodeToInt(status_code) << " " << getStatusMessage(status_code) << "\r\n";
 	oss << "Content-Type: text/html; charset=UTF-8\r\n";
 	oss << "Content-Length: " << body.size() << "\r\n";
+	if (add_allow) {
+		oss << "Allow: GET, POST, DELETE\r\n";
+	}
 	oss << "Connection: close\r\n\r\n";
 	oss << body;
 	return oss.str();
