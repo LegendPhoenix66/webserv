@@ -51,14 +51,18 @@ void EventLoop::run() {
 void EventLoop::acceptIfReady(size_t idx) {
     int lfd = _pfds[idx].fd;
     int cfd = accept(lfd, NULL, NULL);
-    if (cfd >= 0) addClient(cfd);
+    if (cfd >= 0) {
+        const ServerConfig* cfg = _listeners[lfd].config;
+        addClient(cfd, cfg);
+    }
 }
 
-void EventLoop::addClient(int cfd) {
+void EventLoop::addClient(int cfd, const ServerConfig* cfg) {
     fcntl(cfd, F_SETFL, O_NONBLOCK);
     pollfd p; p.fd = cfd; p.events = POLLIN; p.revents = 0;
     _pfds.push_back(p);
     _clients[cfd] = ClientState();
+    _clients[cfd].server = cfg;
 }
 
 void EventLoop::removeAtIndex(size_t &idx) {
@@ -81,7 +85,7 @@ void EventLoop::onClientReadable(size_t idx) {
             st.sent = 0;
             _pfds[idx].events = POLLOUT;
         } else if (state == Request::Ready) {
-            st.out = Server::buildHttpResponse(st.req.method(), st.req.target());
+            st.out = Server::buildHttpResponse(st.req.method(), st.req.target(), st.server);
             st.sent = 0;
             _pfds[idx].events = POLLOUT;
         }

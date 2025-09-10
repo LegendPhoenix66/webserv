@@ -77,6 +77,8 @@ public:
 
     /** Utility: build a simple HTTP response used by the baseline server */
     static std::string buildHttpResponse(const std::string &method, const std::string &path);
+    /** Overload: build response using server configuration (root/index). */
+    static std::string buildHttpResponse(const std::string &method, const std::string &path, const ServerConfig* cfg);
 };
 
 #endif //WEBSERV_SERVER_HPP

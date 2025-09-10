@@ -29,7 +29,8 @@ private:
         Request req;
         std::string out;
         size_t sent;
-        ClientState() : req(), out(), sent(0) {}
+        const ServerConfig* server;
+        ClientState() : req(), out(), sent(0), server(0) {}
     };
 
     std::vector<pollfd> _pfds;
@@ -41,7 +42,7 @@ private:
     void onClientWritable(size_t idx);
     void onClientErrorOrHangup(size_t idx);
 
-    void addClient(int cfd);
+    void addClient(int cfd, const ServerConfig* cfg);
     void removeAtIndex(size_t &idx);
 };
 

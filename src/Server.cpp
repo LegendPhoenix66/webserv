@@ -176,3 +176,75 @@ std::string	Server::buildHttpResponse(const std::string &method, const std::stri
 	oss << body;
 	return oss.str();
 }
+
+
+std::string	Server::buildHttpResponse(const std::string &method, const std::string &path, const ServerConfig* cfg)
+{
+	std::string			body;
+	HttpStatusCode::e	status_code = HttpStatusCode::OK;
+
+	if (method != "GET" && method != "POST" && method != "DELETE")
+		status_code = HttpStatusCode::MethodNotAllowed;
+	else if (method == "GET") {
+		const std::string root = (cfg && !cfg->getRoot().empty()) ? cfg->getRoot() : std::string(".");
+		std::string file_path;
+
+		if (path == "/") {
+			bool served = false;
+			if (cfg) {
+				std::vector<std::string> idx = cfg->getIndex();
+				for (size_t i = 0; i < idx.size(); ++i) {
+					std::string candidate = root + "/" + idx[i];
+					std::ifstream f(candidate.c_str());
+					if (f.good()) {
+						body = readFile(candidate);
+						status_code = HttpStatusCode::OK;
+						served = true;
+						break;
+					}
+				}
+			}
+			if (!served) {
+				file_path = root + "/index.html";
+				std::ifstream f(file_path.c_str());
+				if (f.good()) {
+					body = readFile(file_path);
+					status_code = HttpStatusCode::OK;
+				}
+				else
+					status_code = HttpStatusCode::NotFound;
+			}
+		}
+		else {
+			file_path = root + path;
+			std::ifstream f(file_path.c_str());
+			if (f.good()) {
+				body = readFile(file_path);
+				status_code = HttpStatusCode::OK;
+			}
+			else
+				status_code = HttpStatusCode::NotFound;
+		}
+	}
+	else if (method == "POST" || method == "DELETE")
+		status_code = HttpStatusCode::NotImplemented;
+	else
+		status_code = HttpStatusCode::InternalServerError;
+
+	if (status_code != HttpStatusCode::OK && body.empty()) {
+		std::ostringstream error_body;
+		error_body << "<!doctype html><html><head><title>" << statusCodeToInt(status_code)
+				  << " " << getStatusMessage(status_code) << "</title></head><body><h1>"
+				  << statusCodeToInt(status_code) << " " << getStatusMessage(status_code)
+				  << "</h1></body></html>";
+		body = error_body.str();
+	}
+
+	std::ostringstream oss;
+	oss << "HTTP/1.1 " << statusCodeToInt(status_code) << " " << getStatusMessage(status_code) << "\r\n";
+	oss << "Content-Type: text/html; charset=UTF-8\r\n";
+	oss << "Content-Length: " << body.size() << "\r\n";
+	oss << "Connection: close\r\n\r\n";
+	oss << body;
+	return oss.str();
+}
