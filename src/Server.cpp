@@ -1,5 +1,7 @@
 #include "../inc/Server.hpp"
 #include <sstream>
+#include <arpa/inet.h>
+#include <netdb.h>
 
 Server::Server()
 		: listen_fd(-1) {
@@ -53,7 +55,27 @@ int Server::setupListenSocket() {
 	sockaddr_in addr;
 	std::memset(&addr, 0, sizeof(addr));
 	addr.sin_family = AF_INET;
-	addr.sin_addr.s_addr = INADDR_ANY; // TODO: apply config.getHost() when ipv4 parsing available
+	// Apply configured host if valid IPv4 or resolvable name; fallback to INADDR_ANY
+	{
+		std::string host = config.getHost();
+		if (!host.empty()) {
+			in_addr ina; std::memset(&ina, 0, sizeof(ina));
+			// Try dotted-quad first
+			if (inet_aton(host.c_str(), &ina)) {
+				addr.sin_addr = ina;
+			} else {
+				// Try DNS resolution
+				hostent* he = gethostbyname(host.c_str());
+				if (he && he->h_addrtype == AF_INET && he->h_length == (int)sizeof(in_addr)) {
+					std::memcpy(&addr.sin_addr, he->h_addr, sizeof(in_addr));
+				} else {
+					addr.sin_addr.s_addr = INADDR_ANY;
+				}
+			}
+		} else {
+			addr.sin_addr.s_addr = INADDR_ANY;
+		}
+	}
 	addr.sin_port = htons(config.getPort());
 	if (bind(listen_fd, (struct sockaddr *) &addr, sizeof(addr)) < 0) {
 		std::cerr << "bind() failed" << std::endl;
