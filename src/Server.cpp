@@ -3,6 +3,7 @@
 #include <fstream>
 #include <arpa/inet.h>
 #include <netdb.h>
+#include <sys/stat.h>
 
 Server::Server()
 		: listen_fd(-1) {
