@@ -244,13 +244,25 @@ std::string	Server::buildHttpResponse(const std::string &method, const std::stri
 		status_code = HttpStatusCode::InternalServerError;
 	}
 
-	if (status_code != HttpStatusCode::OK && body.empty()) {
-		std::ostringstream error_body;
-		error_body << "<!doctype html><html><head><title>" << statusCodeToInt(status_code)
-				  << " " << getStatusMessage(status_code) << "</title></head><body><h1>"
-				  << statusCodeToInt(status_code) << " " << getStatusMessage(status_code)
-				  << "</h1></body></html>";
-		body = error_body.str();
+	if (status_code != HttpStatusCode::OK) {
+		const std::map<int, std::string>			err_pages = cfg->getErrorPages();
+		std::map<int, std::string>::const_iterator	it = err_pages.find(statusCodeToInt(status_code));
+		if (it != err_pages.end()) {
+			std::string	error_page_path = cfg->getRoot() + it->second;
+			std::string	error_body_content = readFile(error_page_path);
+			if (!error_body_content.empty()) {
+				body = readFile(error_page_path);
+				content_type = getMimeType(error_page_path);
+			}
+		}
+		if (body.empty()) {
+			std::ostringstream error_body;
+			error_body	<< "<!doctype html><html><head><title>" << statusCodeToInt(status_code)
+						<< " " << getStatusMessage(status_code) << "</title></head><body><h1>"
+						<< statusCodeToInt(status_code) << " " << getStatusMessage(status_code)
+						<< "</h1></body></html>";
+			body = error_body.str();
+		}
 	}
 
 	std::ostringstream oss;
