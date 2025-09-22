@@ -1,5 +1,9 @@
 #include "../inc/Server.hpp"
 #include <sstream>
+#include <fstream>
+#include <arpa/inet.h>
+#include <netdb.h>
+#include <sys/stat.h>
 
 Server::Server()
 		: listen_fd(-1) {
@@ -29,11 +33,16 @@ void Server::swap(Server &other) {
 }
 
 void Server::start() {
+	// Non-blocking initializer: only set up the listening socket.
+	setupListenSocket();
+}
+
+int Server::setupListenSocket() {
 	// Create socket
 	listen_fd = socket(AF_INET, SOCK_STREAM, 0);
 	if (listen_fd < 0) {
 		std::cerr << "socket() failed" << std::endl;
-		return;
+		return -1;
 	}
 
 	// Set non-blocking
@@ -47,129 +56,43 @@ void Server::start() {
 	sockaddr_in addr;
 	std::memset(&addr, 0, sizeof(addr));
 	addr.sin_family = AF_INET;
-	addr.sin_addr.s_addr = INADDR_ANY; //config.getHost();
+	// Apply configured host if valid IPv4 or resolvable name; fallback to INADDR_ANY
+	{
+		std::string host = config.getHost();
+		if (!host.empty()) {
+			in_addr ina; std::memset(&ina, 0, sizeof(ina));
+			// Try dotted-quad first
+			if (inet_aton(host.c_str(), &ina)) {
+				addr.sin_addr = ina;
+			} else {
+				// Try DNS resolution
+				hostent* he = gethostbyname(host.c_str());
+				if (he && he->h_addrtype == AF_INET && he->h_length == (int)sizeof(in_addr)) {
+					std::memcpy(&addr.sin_addr, he->h_addr, sizeof(in_addr));
+				} else {
+					addr.sin_addr.s_addr = INADDR_ANY;
+				}
+			}
+		} else {
+			addr.sin_addr.s_addr = INADDR_ANY;
+		}
+	}
 	addr.sin_port = htons(config.getPort());
 	if (bind(listen_fd, (struct sockaddr *) &addr, sizeof(addr)) < 0) {
 		std::cerr << "bind() failed" << std::endl;
-		return;
+		close(listen_fd);
+		listen_fd = -1;
+		return -1;
 	}
 
 	// Listen
 	if (listen(listen_fd, SOMAXCONN) < 0) {
 		std::cerr << "listen() failed" << std::endl;
-		return;
+		close(listen_fd);
+		listen_fd = -1;
+		return -1;
 	}
-
-	runEventLoop();
-}
-
-void Server::runEventLoop() {
-	addListenSocketToPoll();
-
-	while (true) {
-		int ret = poll(&poll_fds[0], poll_fds.size(), -1);
-		if (ret < 0) {
-			std::cerr << "poll() failed" << std::endl;
-			break;
-		}
-		for (size_t i = 0; i < poll_fds.size(); ++i) {
-			if (poll_fds[i].revents & POLLIN) {
-				if (poll_fds[i].fd == listen_fd) {
-					handleListenEvent();
-				} else {
-					handleClientReadable(i);
-				}
-			} else if (poll_fds[i].revents & POLLOUT) {
-				handleClientWritable(i);
-			} else if (poll_fds[i].revents & (POLLERR | POLLHUP | POLLNVAL)) {
-				handleClientErrorOrHangup(i);
-			}
-		}
-	}
-	close(listen_fd);
-}
-
-void Server::addListenSocketToPoll() {
-	pollfd listen_pollfd;
-	listen_pollfd.fd = listen_fd;
-	listen_pollfd.events = POLLIN;
-	poll_fds.push_back(listen_pollfd);
-}
-
-void Server::handleListenEvent() {
-	// Accept new client
-	int client_fd = accept(listen_fd, NULL, NULL);
-	if (client_fd >= 0) {
-		addClient(client_fd);
-	}
-}
-
-void Server::addClient(int client_fd) {
-	fcntl(client_fd, F_SETFL, O_NONBLOCK);
-	pollfd client_pollfd;
-	client_pollfd.fd = client_fd;
-	client_pollfd.events = POLLIN;
-	poll_fds.push_back(client_pollfd);
-	client_states[client_fd] = ClientState();
-}
-
-void Server::removeClientAtIndex(size_t &i) {
-	close(poll_fds[i].fd);
-	client_states.erase(poll_fds[i].fd);
-	poll_fds.erase(poll_fds.begin() + i);
-	if (i > 0) {
-		--i; // adjust index since current element was erased
-	}
-}
-
-void Server::handleClientReadable(size_t &i) {
-	// Read from client
-	char buffer[1024];
-	int n = recv(poll_fds[i].fd, buffer, sizeof(buffer), 0);
-	if (n > 0) {
-		ClientState &st = client_states[poll_fds[i].fd];
-		st.in.append(buffer, n);
-		// Check for end of headers
-		if (st.in.find("\r\n\r\n") != std::string::npos) {
-			size_t line_end = st.in.find("\r\n");
-			std::string req_line = (line_end != std::string::npos) ? st.in.substr(0, line_end) : st.in;
-			std::istringstream iss(req_line);
-			std::string method, path, version;
-			iss >> method >> path >> version;
-
-			st.out = buildHttpResponse(method, path);
-			st.sent = 0;
-			poll_fds[i].events = POLLOUT;
-		}
-	} else {
-		// Client disconnected or error
-		removeClientAtIndex(i);
-	}
-}
-
-void Server::handleClientWritable(size_t &i) {
-	// Send response
-	ClientState &st = client_states[poll_fds[i].fd];
-	const std::string &out = st.out;
-	if (st.sent < out.size()) {
-		int n = send(poll_fds[i].fd, out.c_str() + st.sent, out.size() - st.sent, 0);
-		if (n > 0) {
-			st.sent += static_cast<size_t>(n);
-		} else {
-			// Error while sending, close connection
-			removeClientAtIndex(i);
-			return;
-		}
-	}
-	if (st.sent >= st.out.size()) {
-		// Response fully sent: close connection
-		removeClientAtIndex(i);
-	}
-}
-
-void Server::handleClientErrorOrHangup(size_t &i) {
-	// Error or hangup
-	removeClientAtIndex(i);
+	return listen_fd;
 }
 
 std::string	Server::readFile(const std::string& path)
@@ -206,7 +129,7 @@ std::string	Server::getMimeType(const std::string &path)
 	return "text/html";
 }
 
-std::string	Server::buildHttpResponse(const std::string &method, const std::string &path)
+/*std::string	Server::buildHttpResponse(const std::string &method, const std::string &path)
 {
 	std::string			body;
 	HttpStatusCode::e	status_code;
@@ -246,6 +169,97 @@ std::string	Server::buildHttpResponse(const std::string &method, const std::stri
 	oss << "HTTP/1.1 " << statusCodeToInt(status_code) << " " << getStatusMessage(status_code) << "\r\n";
 	oss << "Content-Type: " << content_type << "; charset=UTF-8\r\n";
 	oss << "Content-Length: " << body.size() << "\r\n";
+	oss << "Connection: close\r\n\r\n";
+	oss << body;
+	return oss.str();
+}*/
+
+std::string	Server::buildHttpResponse(const std::string &method, const std::string &path, const ServerConfig* cfg)
+{
+	std::string			body;
+	HttpStatusCode::e	status_code = HttpStatusCode::OK;
+	bool				add_allow = false;
+	std::string			content_type = "text/html";
+
+	if (cfg->getHost().empty())
+		status_code = HttpStatusCode::BadRequest;
+	else if (method != "GET" && method != "POST" && method != "DELETE") {
+		status_code = HttpStatusCode::MethodNotAllowed;
+		add_allow = true;
+	}
+	else if (method == "GET") {
+		const std::string root = (cfg && !cfg->getRoot().empty()) ? cfg->getRoot() : std::string(".");
+		std::string req_path = path.empty() ? "/" : path;
+
+		// Basic traversal guard
+		if (req_path.find("..") != std::string::npos) {
+			status_code = HttpStatusCode::Forbidden;
+		} else {
+			if (req_path.empty() || req_path[0] != '/') req_path.insert(req_path.begin(), '/');
+			std::string fs_path = root + req_path;
+
+			struct stat st;
+			if (stat(fs_path.c_str(), &st) == 0) {
+				if (S_ISDIR(st.st_mode)) {
+					bool served = false;
+					if (cfg) {
+						std::vector<std::string> idx = cfg->getIndex();
+						for (size_t i = 0; i < idx.size(); ++i) {
+							std::string candidate = fs_path;
+							if (!candidate.empty() && candidate[candidate.size()-1] != '/')
+								candidate += "/";
+							candidate += idx[i];
+							std::ifstream f(candidate.c_str());
+							if (f.good()) {
+								body = readFile(candidate);
+								status_code = HttpStatusCode::OK;
+								content_type = getMimeType(candidate);
+								served = true;
+								break;
+							}
+						}
+					}
+					if (!served) {
+						status_code = HttpStatusCode::Forbidden;
+					}
+				} else {
+					std::ifstream f(fs_path.c_str());
+					if (f.good()) {
+						body = readFile(fs_path);
+						status_code = HttpStatusCode::OK;
+						content_type = getMimeType(fs_path);
+					} else {
+						status_code = HttpStatusCode::NotFound;
+					}
+				}
+			} else {
+				status_code = HttpStatusCode::NotFound;
+			}
+		}
+	}
+	else if (method == "POST" || method == "DELETE") {
+		status_code = HttpStatusCode::NotImplemented;
+	}
+	else {
+		status_code = HttpStatusCode::InternalServerError;
+	}
+
+	if (status_code != HttpStatusCode::OK && body.empty()) {
+		std::ostringstream error_body;
+		error_body << "<!doctype html><html><head><title>" << statusCodeToInt(status_code)
+				  << " " << getStatusMessage(status_code) << "</title></head><body><h1>"
+				  << statusCodeToInt(status_code) << " " << getStatusMessage(status_code)
+				  << "</h1></body></html>";
+		body = error_body.str();
+	}
+
+	std::ostringstream oss;
+	oss << "HTTP/1.1 " << statusCodeToInt(status_code) << " " << getStatusMessage(status_code) << "\r\n";
+	oss << "Content-Type: " << content_type << "; charset=UTF-8\r\n";
+	oss << "Content-Length: " << body.size() << "\r\n";
+	if (add_allow) {
+		oss << "Allow: GET, POST, DELETE\r\n";
+	}
 	oss << "Connection: close\r\n\r\n";
 	oss << body;
 	return oss.str();

@@ -5,7 +5,6 @@
 #include "HttpStatusCodes.hpp"
 #include <sys/types.h>
 #include <sys/socket.h>
-#include <poll.h>
 #include <fcntl.h>
 #include <netinet/in.h>
 #include <cstring>
@@ -26,16 +25,6 @@ private:
     int listen_fd;
     /** @brief Configuration options for this server instance. */
     ServerConfig config;
-    /** @brief Tracks all sockets (listening + clients). */
-    std::vector<pollfd> poll_fds;
-    /** @brief Per-client state (input/output buffers and progress). */
-    struct ClientState {
-        std::string in;
-        std::string out;
-        size_t sent;
-        ClientState() : in(), out(), sent(0) {}
-    };
-    std::map<int, ClientState> client_states;
 
     /**
      * @brief Swaps the contents of this Server with another.
@@ -43,27 +32,11 @@ private:
      */
     void swap(Server &other);
 
-    /**
-     * @brief Runs the main event loop for handling incoming connections and requests.
-     *
-     * This method monitors sockets for activity, accepts new connections,
-     * and processes client requests according to the server configuration.
-     */
-    void runEventLoop();
 
-    // Helper methods to keep the event loop readable and maintainable
-    void addListenSocketToPoll();
-    void handleListenEvent();
-    void handleClientReadable(size_t &i);
-    void handleClientWritable(size_t &i);
-    void handleClientErrorOrHangup(size_t &i);
-    void addClient(int client_fd);
-    void removeClientAtIndex(size_t &i);
 
-	std::string	readFile(const std::string& path);
+	static std::string	readFile(const std::string& path);
 	bool		checkLocationPaths(const std::vector<Location> &locations);
-    std::string getMimeType(const std::string &path);
-    std::string	buildHttpResponse(const std::string &method, const std::string &path);
+    static std::string getMimeType(const std::string &path);
 
 public:
     /** @brief Default constructor. Initializes an empty server. */
@@ -92,6 +65,23 @@ public:
      * @brief Starts the server: sets up the socket and begins accepting connections.
      */
     void start();
+
+    /**
+     * @brief Create, bind, and listen on the configured address. Non-blocking.
+     * @return listening fd on success (>=0), or -1 on failure.
+     */
+    int setupListenSocket();
+
+    /** @return the listening fd (valid after setupListenSocket). */
+    int getListenFd() const { return listen_fd; }
+
+    /** @return const reference to this server's config. */
+    const ServerConfig& getConfig() const { return config; }
+
+    /** Utility: build a simple HTTP response used by the baseline server */
+    static std::string buildHttpResponse(const std::string &method, const std::string &path);
+    /** Overload: build response using server configuration (root/index). */
+    static std::string buildHttpResponse(const std::string &method, const std::string &path, const ServerConfig* cfg);
 };
 
 #endif //WEBSERV_SERVER_HPP
