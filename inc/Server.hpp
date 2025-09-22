@@ -60,7 +60,10 @@ private:
     void addClient(int client_fd);
     void removeClientAtIndex(size_t &i);
 
-    static std::string buildHttpResponse(const std::string &method, const std::string &path);
+	std::string	readFile(const std::string& path);
+	bool		checkLocationPaths(const std::vector<Location> &locations);
+    std::string getMimeType(const std::string &path);
+    std::string	buildHttpResponse(const std::string &method, const std::string &path);
 
 public:
     /** @brief Default constructor. Initializes an empty server. */

@@ -172,30 +172,7 @@ void Server::handleClientErrorOrHangup(size_t &i) {
 	removeClientAtIndex(i);
 }
 
-/*std::string Server::buildHttpResponse(const std::string &method, const std::string &path)
-{
-	std::string			body;
-	HttpStatusCode::e	status_code;
-	if (method != "GET" && method != "POST" && method != "DELETE") {
-		body = "<!doctype html><html><head><meta charset=\"utf-8\"><title>Method Not Allowed</title></head><body><h1>405 Method Not Allowed</h1><p>The method specified in the Request-Line is not allowed for the resource identified by the Request-URI.</p></body></html>";
-		status_code = HttpStatusCode::MethodNotAllowed;
-	} else if (method == "GET" && path == "/") {
-		body = "<!doctype html><html><head><meta charset=\"utf-8\"><title>webserv</title></head><body><h1>It works!</h1><p>Welcome to webserv.</p></body></html>";
-		status_code = HttpStatusCode::OK;
-	} else {
-		body = "<!doctype html><html><head><meta charset=\"utf-8\"><title>Not Found</title></head><body><h1>404 Not Found</h1><p>The requested resource was not found on this server.</p></body></html>";
-		status_code = HttpStatusCode::NotFound;
-	}
-	std::ostringstream oss;
-	oss << "HTTP/1.1 " << statusCodeToInt(status_code) << " " << getStatusMessage(status_code) << "\r\n";
-	oss << "Content-Type: text/html; charset=UTF-8\r\n";
-	oss << "Content-Length: " << body.size() << "\r\n";
-	oss << "Connection: close\r\n\r\n";
-	oss << body;
-	return oss.str();
-}*/
-
-std::string	readFile(const std::string& path)
+std::string	Server::readFile(const std::string& path)
 {
 	std::ifstream file(path.c_str());
 	if (!file.is_open()) {
@@ -206,20 +183,47 @@ std::string	readFile(const std::string& path)
 	return buffer.str();
 }
 
+bool	Server::checkLocationPaths(const std::vector<Location> &locations)
+{
+	std::set<std::string>	paths;
+	for (size_t i = 0; i < locations.size(); i++) {
+		const std::string &path = locations[i].getPath();
+		if (paths.find(path) != paths.end())
+			return true;
+		paths.insert(path);
+	}
+	return false;
+}
+
+std::string	Server::getMimeType(const std::string &path)
+{
+	if (path.size() > 4 && path.substr(path.size() - 4) == ".css")
+		return "text/css";
+	if (path.size() > 4 && path.substr(path.size() - 4) == ".png")
+		return "image/png";
+	if (path.size() > 4 && path.substr(path.size() - 4) == ".jpg")
+		return "image/jpeg";
+	return "text/html";
+}
+
 std::string	Server::buildHttpResponse(const std::string &method, const std::string &path)
 {
 	std::string			body;
-	HttpStatusCode::e	status_code = HttpStatusCode::OK;
+	HttpStatusCode::e	status_code;
+	std::string			content_type = "text/html";
 
-	if (method != "GET" && method != "POST" && method != "DELETE")
+	if (this->config.getHost().empty())
+		status_code = HttpStatusCode::BadRequest;
+	else if (method != "GET" && method != "POST" && method != "DELETE")
 		status_code = HttpStatusCode::MethodNotAllowed;
-	else if (method == "GET") {
+	else if (method == "GET" && !checkLocationPaths(this->config.getLocations())) {
 		std::string		file_path = "." + (path == "/" ? "/index.html" : path);
 		std::ifstream	file(file_path.c_str());
 
 		if (file.good()) {
 			body = readFile(file_path);
 			status_code = HttpStatusCode::OK;
+			content_type = getMimeType(file_path);
 		}
 		else
 			status_code = HttpStatusCode::NotFound;
@@ -240,7 +244,7 @@ std::string	Server::buildHttpResponse(const std::string &method, const std::stri
 
 	std::ostringstream	oss;
 	oss << "HTTP/1.1 " << statusCodeToInt(status_code) << " " << getStatusMessage(status_code) << "\r\n";
-	oss << "Content-Type: text/html; charset=UTF-8\r\n";
+	oss << "Content-Type: " << content_type << "; charset=UTF-8\r\n";
 	oss << "Content-Length: " << body.size() << "\r\n";
 	oss << "Connection: close\r\n\r\n";
 	oss << body;
