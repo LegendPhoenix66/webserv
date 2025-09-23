@@ -174,7 +174,8 @@ std::string	Server::getMimeType(const std::string &path)
 	return oss.str();
 }*/
 
-std::string	Server::buildHttpResponse(const std::string &method, const std::string &path, const ServerConfig* cfg)
+std::string
+Server::buildHttpResponse(const std::string &method, const std::string &path, const std::string &request_body, const ServerConfig *cfg)
 {
 	std::string			body;
 	HttpStatusCode::e	status_code = HttpStatusCode::OK;
@@ -237,8 +238,34 @@ std::string	Server::buildHttpResponse(const std::string &method, const std::stri
 			}
 		}
 	}
-	else if (method == "POST" || method == "DELETE") {
-		status_code = HttpStatusCode::NotImplemented;
+	else if (method == "POST") {
+		size_t	max_size = cfg->getClientMaxBodySize();
+		if (max_size > 0 && request_body.size() > max_size)
+			status_code = HttpStatusCode::ContentTooLarge;
+		else
+			status_code = HttpStatusCode::NotImplemented;
+	}
+	else if (method == "DELETE") {
+		const std::string	root = (cfg && !cfg->getRoot().empty()) ? cfg->getRoot() : std::string(".");
+		std::string			req_path = path;
+		if (req_path.find("..") != std::string::npos)
+			status_code = HttpStatusCode::Forbidden;
+		else {
+			if (req_path.empty() || req_path[0] != '/')
+				req_path.insert(req_path.begin(), '/');
+			std::string	fs_path = root + req_path;
+
+			std::ifstream	file(fs_path.c_str());
+			if (!file.good())
+				status_code = HttpStatusCode::NotFound;
+			else {
+				file.close();
+				if (std::remove(fs_path.c_str()) == 0)
+					status_code = HttpStatusCode::NoContent;
+				else
+					status_code = HttpStatusCode::Forbidden;
+			}
+		}
 	}
 	else {
 		status_code = HttpStatusCode::InternalServerError;

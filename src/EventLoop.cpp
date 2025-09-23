@@ -85,7 +85,7 @@ void EventLoop::onClientReadable(size_t idx) {
             st.sent = 0;
             _pfds[idx].events = POLLOUT;
         } else if (state == Request::Ready) {
-            st.out = Server::buildHttpResponse(st.req.method(), st.req.target(), st.server);
+            st.out = Server::buildHttpResponse(st.req.method(), st.req.target(), st.req.body(), st.server);
             st.sent = 0;
             _pfds[idx].events = POLLOUT;
         }
