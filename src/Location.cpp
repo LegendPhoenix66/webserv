@@ -105,7 +105,7 @@ Location::DirectiveType Location::getDirectiveType(const std::string &var) {
 }
 
 void	Location::parseDirective(const std::string &line) {
-	if (line.empty() || line[line.size() - 1] != ';')
+	if (line.empty() || line[line.size() - 1] != ';' || line.find(';') != line.rfind(';'))
 		throw InvalidFormat("Config File: Missing ';' at end of line.");
 
 	std::istringstream iss(line.substr(0, line.size() - 1));

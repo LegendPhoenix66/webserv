@@ -20,8 +20,6 @@ int main(int argc, char **argv) {
 
 	try {
 		std::vector<ServerConfig> configs = init_config(config_path);
-		/*for (size_t i = 0; i < configs.size(); i++)
-			print_conf(configs[i], i + 1);*/
 
 		// Build servers and register their listeners into a unified EventLoop
 		std::vector<Server> servers;

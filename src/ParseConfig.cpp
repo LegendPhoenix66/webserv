@@ -103,7 +103,7 @@ void ParseConfig::parseDirective(std::vector<std::string> &conf_vec, size_t &i, 
 		return;
 	}
 
-	if (conf_vec[i].empty() || conf_vec[i][conf_vec[i].size() - 1] != ';')
+	if (conf_vec[i].empty() || conf_vec[i][conf_vec[i].size() - 1] != ';' || conf_vec[i].find(';') != conf_vec[i].rfind(';'))
 		throw InvalidFormat("Config File: Missing ';' at end of line.");
 	conf_vec[i].erase(conf_vec[i].size() - 1);
 
