@@ -5,6 +5,7 @@
 #include "HttpStatusCodes.hpp"
 #include <sys/types.h>
 #include <sys/socket.h>
+#include <sys/stat.h>
 #include <poll.h>
 #include <fcntl.h>
 #include <netinet/in.h>
@@ -63,7 +64,8 @@ private:
 	std::string	readFile(const std::string& path);
 	bool		checkLocationPaths(const std::vector<Location> &locations);
     std::string getMimeType(const std::string &path);
-    std::string	buildHttpResponse(const std::string &method, const std::string &path);
+    std::string
+    buildHttpResponse(const std::string &method, const std::string &path);
 
 public:
     /** @brief Default constructor. Initializes an empty server. */

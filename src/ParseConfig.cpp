@@ -103,9 +103,19 @@ void ParseConfig::parseDirective(std::vector<std::string> &conf_vec, size_t &i, 
 		return;
 	}
 
-	if (conf_vec[i].empty() || conf_vec[i][conf_vec[i].size() - 1] != ';')
+	size_t	semicolon_pos = conf_vec[i].find(';');
+	if (conf_vec[i].empty() || semicolon_pos == std::string::npos)
 		throw InvalidFormat("Config File: Missing ';' at end of line.");
-	conf_vec[i].erase(conf_vec[i].size() - 1);
+
+	std::string after_semicolon = conf_vec[i].substr(semicolon_pos + 1);
+	size_t comment_pos = after_semicolon.find('#');
+	std::string trailing = (comment_pos != std::string::npos) ? after_semicolon.substr(0, comment_pos) : after_semicolon;
+	for (size_t j = 0; j < trailing.size(); ++j) {
+		if (!isspace(trailing[j]))
+			throw InvalidFormat("Config File: Unexpected characters after ';'.");
+	}
+
+	conf_vec[i] = conf_vec[i].substr(0, semicolon_pos);
 
 	std::istringstream	iss(conf_vec[i]);
 	std::string			var;
@@ -121,7 +131,7 @@ void ParseConfig::parseDirective(std::vector<std::string> &conf_vec, size_t &i, 
 		handleErrorPage(iss, config);
 	else if (var == "client_max_body_size")
 		handleClientSize(iss, config);
-	else
+	else if (!var.empty())
 		throw InvalidFormat("Config File: Unknown directive in server block.");
 }
 

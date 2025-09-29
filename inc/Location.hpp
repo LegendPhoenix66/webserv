@@ -61,6 +61,7 @@ private:
 		DIR_UPLOAD_STORE,   /**< The 'upload_store' directive. */
 		DIR_CLIENT_MAX_BODY_SIZE, /**< The 'client_max_body_size' directive. */
 		DIR_LIMIT_EXCEPT,   /**< The 'limit_except' directive. */
+		DIR_EMPTY,
 		DIR_UNKNOWN         /**< Unknown or unsupported directive. */
 	};
 

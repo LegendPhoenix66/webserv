@@ -210,28 +210,110 @@ std::string	Server::buildHttpResponse(const std::string &method, const std::stri
 {
 	std::string			body;
 	HttpStatusCode::e	status_code;
+	bool				add_allow = false;
 	std::string			content_type = "text/html";
 
 	if (this->config.getHost().empty())
 		status_code = HttpStatusCode::BadRequest;
-	else if (method != "GET" && method != "POST" && method != "DELETE")
+	else if (method != "GET" && method != "POST" && method != "DELETE") {
 		status_code = HttpStatusCode::MethodNotAllowed;
-	else if (method == "GET" && !checkLocationPaths(this->config.getLocations())) {
-		std::string		file_path = "." + (path == "/" ? "/index.html" : path);
-		std::ifstream	file(file_path.c_str());
-
-		if (file.good()) {
-			body = readFile(file_path);
-			status_code = HttpStatusCode::OK;
-			content_type = getMimeType(file_path);
-		}
-		else
-			status_code = HttpStatusCode::NotFound;
+		add_allow = true;
 	}
-	else if (method == "POST" || method == "DELETE")
-		status_code = HttpStatusCode::NotImplemented;
+	else if (method == "GET") {
+		const std::string	root = (!this->config.getRoot().empty()) ? this->config.getRoot() : std::string(".");
+		std::string			req_path = path.empty() ? "/" : path;
+		if (req_path[0] != '/')
+			req_path.insert(req_path.begin(), '/');
+
+		if (req_path.find("..") != std::string::npos)
+			status_code = HttpStatusCode::Forbidden;
+		else {
+			struct stat st;
+			std::string	file_path = root + req_path;
+			if (stat(file_path.c_str(), &st) == 0) {
+				if (S_ISDIR(st.st_mode)) {
+					std::vector <std::string> index = this->config.getIndex();
+					for (size_t i = 0; i < index.size(); i++) {
+						std::string candidate = file_path;
+						if (candidate[candidate.size() - 1] != '/')
+							candidate += "/";
+						candidate += index[i];
+						std::ifstream file(candidate.c_str());
+						if (file.good()) {
+							body = readFile(candidate);
+							status_code = HttpStatusCode::OK;
+							content_type = getMimeType(candidate);
+							break;
+						}
+					}
+				}
+				else {
+					std::ifstream	file(file_path.c_str());
+					if (file.good()) {
+						body = readFile(file_path);
+						status_code = HttpStatusCode::OK;
+						content_type = getMimeType(file_path);
+					}
+					else
+						status_code = HttpStatusCode::NotFound;
+				}
+			}
+			else
+				status_code = HttpStatusCode::NotFound;
+		}
+	}
+	else if (method == "POST") {
+		size_t max_size = this->config.getClientMaxBodySize();
+		if (max_size > 0)
+			status_code = HttpStatusCode::ContentTooLarge;
+		else
+			status_code = HttpStatusCode::NotImplemented;
+	}
+	else if (method == "DELETE") {
+		const std::string	root = (!this->config.getRoot().empty()) ? this->config.getRoot() : std::string(".");
+		std::string			req_path = path;
+		if (req_path.find("..") != std::string::npos)
+			status_code = HttpStatusCode::Forbidden;
+		else {
+			if (req_path.empty() || req_path[0] != '/')
+				req_path.insert(req_path.begin(), '/');
+			std::string	file_path = root + req_path;
+
+			std::ifstream	file(file_path.c_str());
+			if (!file.good())
+				status_code = HttpStatusCode::NotFound;
+			else {
+				file.close();
+				if (std::remove(file_path.c_str()) == 0)
+					status_code = HttpStatusCode::NoContent;
+				else
+					status_code = HttpStatusCode::Forbidden;
+			}
+		}
+	}
 	else
 		status_code = HttpStatusCode::InternalServerError;
+
+	if (status_code != HttpStatusCode::OK) {
+		const std::map<int, std::string>			err_pages = this->config.getErrorPages();
+		std::map<int, std::string>::const_iterator	it = err_pages.find(statusCodeToInt(status_code));
+		if (it != err_pages.end()) {
+			std::string	error_page_path = this->config.getRoot() + it->second;
+			std::string	error_body_content = readFile(error_page_path);
+			if (!error_body_content.empty()) {
+				body = readFile(error_page_path);
+				content_type = getMimeType(error_page_path);
+			}
+		}
+		if (body.empty()) {
+			std::ostringstream error_body;
+			error_body	<< "<!doctype html><html><head><title>" << statusCodeToInt(status_code)
+						  << " " << getStatusMessage(status_code) << "</title></head><body><h1>"
+						  << statusCodeToInt(status_code) << " " << getStatusMessage(status_code)
+						  << "</h1></body></html>";
+			body = error_body.str();
+		}
+	}
 
 	if (status_code != HttpStatusCode::OK && body.empty()) {
 		std::ostringstream	error_body;
@@ -246,6 +328,8 @@ std::string	Server::buildHttpResponse(const std::string &method, const std::stri
 	oss << "HTTP/1.1 " << statusCodeToInt(status_code) << " " << getStatusMessage(status_code) << "\r\n";
 	oss << "Content-Type: " << content_type << "; charset=UTF-8\r\n";
 	oss << "Content-Length: " << body.size() << "\r\n";
+	if (add_allow)
+		oss << "Allow: GET, POST, DELETE\r\n";
 	oss << "Connection: close\r\n\r\n";
 	oss << body;
 	return oss.str();

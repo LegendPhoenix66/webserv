@@ -101,14 +101,24 @@ Location::DirectiveType Location::getDirectiveType(const std::string &var) {
 	if (var == "upload_store") return DIR_UPLOAD_STORE;
 	if (var == "client_max_body_size") return DIR_CLIENT_MAX_BODY_SIZE;
 	if (var == "limit_except") return DIR_LIMIT_EXCEPT;
+	if (var.empty()) return DIR_EMPTY;
 	return DIR_UNKNOWN;
 }
 
 void	Location::parseDirective(const std::string &line) {
-	if (line.empty() || line[line.size() - 1] != ';')
+	size_t	semicolon_pos = line.find(';');
+	if (line.empty() || semicolon_pos == std::string::npos)
 		throw InvalidFormat("Config File: Missing ';' at end of line.");
 
-	std::istringstream iss(line.substr(0, line.size() - 1));
+	std::string after_semicolon = line.substr(semicolon_pos + 1);
+	size_t comment_pos = after_semicolon.find('#');
+	std::string trailing = (comment_pos != std::string::npos) ? after_semicolon.substr(0, comment_pos) : after_semicolon;
+	for (size_t j = 0; j < trailing.size(); ++j) {
+		if (!isspace(trailing[j]))
+			throw InvalidFormat("Config File: Unexpected characters after ';'.");
+	}
+
+	std::istringstream iss(line.substr(0, semicolon_pos));
 	std::string var;
 	iss >> var;
 
@@ -167,6 +177,8 @@ void	Location::parseDirective(const std::string &line) {
 				this->limit_except.push_back(value);
 			break;
 		}
+		case DIR_EMPTY:
+			break;
 		default:
 			throw InvalidFormat("Config File: Unknown directive in location block.");
 	}
