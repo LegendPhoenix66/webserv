@@ -96,21 +96,24 @@ void ParseConfig::trim(std::string &line) {
 
 void ParseConfig::parseDirective(std::vector<std::string> &conf_vec, size_t &i, ServerConfig &config)
 {
-	std::string	first_word = conf_vec[i].substr(0, conf_vec[i].find_first_of(" \t"));
+	const std::string	first_word = conf_vec[i].substr(0, conf_vec[i].find_first_of(" \t"));
 
 	if (first_word == "location") {
 		handleLocation(conf_vec, i, config);
 		return;
 	}
 
-	size_t	semicolon_pos = conf_vec[i].find(';');
+	const size_t	semicolon_pos = conf_vec[i].find(';');
 	if (conf_vec[i].empty() || semicolon_pos == std::string::npos)
 		throw InvalidFormat("Config File: Missing ';' at end of line.");
 
-	std::string after_semicolon = conf_vec[i].substr(semicolon_pos + 1);
-	size_t comment_pos = after_semicolon.find('#');
-	std::string trailing = (comment_pos != std::string::npos) ? after_semicolon.substr(0, comment_pos) : after_semicolon;
-	for (size_t j = 0; j < trailing.size(); ++j) {
+	const size_t	comment_pos = conf_vec[i].find('#', semicolon_pos);
+	std::string trailing;
+	if (comment_pos != std::string::npos)
+		trailing = conf_vec[i].substr(semicolon_pos + 1, comment_pos - semicolon_pos - 1);
+	else
+		trailing = conf_vec[i].substr(semicolon_pos + 1);
+	for (size_t j = 0; j < trailing.size(); j++) {
 		if (!isspace(trailing[j]))
 			throw InvalidFormat("Config File: Unexpected characters after ';'.");
 	}

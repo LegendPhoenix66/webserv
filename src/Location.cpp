@@ -106,14 +106,17 @@ Location::DirectiveType Location::getDirectiveType(const std::string &var) {
 }
 
 void	Location::parseDirective(const std::string &line) {
-	size_t	semicolon_pos = line.find(';');
+	const size_t	semicolon_pos = line.find(';');
 	if (line.empty() || semicolon_pos == std::string::npos)
 		throw InvalidFormat("Config File: Missing ';' at end of line.");
 
-	std::string after_semicolon = line.substr(semicolon_pos + 1);
-	size_t comment_pos = after_semicolon.find('#');
-	std::string trailing = (comment_pos != std::string::npos) ? after_semicolon.substr(0, comment_pos) : after_semicolon;
-	for (size_t j = 0; j < trailing.size(); ++j) {
+	const size_t	comment_pos = line.find('#', semicolon_pos);
+	std::string trailing;
+	if (comment_pos != std::string::npos)
+		trailing = line.substr(semicolon_pos + 1, comment_pos - semicolon_pos - 1);
+	else
+		trailing = line.substr(semicolon_pos + 1);
+	for (size_t j = 0; j < trailing.size(); j++) {
 		if (!isspace(trailing[j]))
 			throw InvalidFormat("Config File: Unexpected characters after ';'.");
 	}
