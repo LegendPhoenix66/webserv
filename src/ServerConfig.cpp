@@ -3,7 +3,7 @@
 #include "../inc/ServerConfig.hpp"
 
 ServerConfig::ServerConfig() :
-		port(0),
+		port(0), host(0),
 		client_max_body_size(0) {
 }
 
@@ -46,7 +46,7 @@ void ServerConfig::setServerName(std::string name) {
 	this->server_name = name;
 }
 
-void ServerConfig::setHost(std::string host) {
+void ServerConfig::setHost(uint32_t host) {
 	this->host = host;
 }
 
@@ -78,7 +78,7 @@ std::string ServerConfig::getServerName() const {
 	return server_name;
 }
 
-std::string ServerConfig::getHost() const {
+uint32_t ServerConfig::getHost() const {
 	return host;
 }
 

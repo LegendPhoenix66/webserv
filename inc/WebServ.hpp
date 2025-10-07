@@ -11,6 +11,8 @@
 #include <sstream>
 #include <utility>
 #include <set>
+#include <netdb.h>
+#include <cstring>
 
 #include <stdint.h>
 

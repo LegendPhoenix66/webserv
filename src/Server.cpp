@@ -47,7 +47,7 @@ void Server::start() {
 	sockaddr_in addr;
 	std::memset(&addr, 0, sizeof(addr));
 	addr.sin_family = AF_INET;
-	addr.sin_addr.s_addr = INADDR_ANY; //config.getHost();
+	addr.sin_addr.s_addr = (config.getHost() == 0) ? INADDR_ANY : config.getHost(); //config.getHost();
 	addr.sin_port = htons(config.getPort());
 	if (bind(listen_fd, (struct sockaddr *) &addr, sizeof(addr)) < 0) {
 		std::cerr << "bind() failed" << std::endl;
@@ -73,20 +73,35 @@ void Server::runEventLoop() {
 			break;
 		}
 		for (size_t i = 0; i < poll_fds.size(); ++i) {
-			if (poll_fds[i].revents & POLLIN) {
+			int	re = poll_fds[i].revents;
+			if (re & POLLIN) {
 				if (poll_fds[i].fd == listen_fd) {
 					handleListenEvent();
 				} else {
 					handleClientReadable(i);
 				}
-			} else if (poll_fds[i].revents & POLLOUT) {
+			} else if (re & POLLOUT) {
 				handleClientWritable(i);
-			} else if (poll_fds[i].revents & (POLLERR | POLLHUP | POLLNVAL)) {
+			} else if (re & (POLLERR | POLLHUP | POLLNVAL)) {
 				handleClientErrorOrHangup(i);
 			}
 		}
 	}
 	close(listen_fd);
+}
+
+void	Server::handleTimeOut() {
+	std::string	body;
+	std::string	content_type = "text/html";
+	bool		add_allow = false;
+	std::string	response = returnHttpResponse(HttpStatusCode::RequestTimeout, body, content_type, add_allow);
+
+	/*for (size_t i = 0; i < poll_fds.size(); i++) {
+		send(poll_fds[i].fd, response.c_str(), response.size(), 0);
+		close(poll_fds[i].fd);
+		client_states.erase(poll_fds[i].fd);
+	}
+	poll_fds.erase(poll_fds.begin() + 1, poll_fds.end());*/
 }
 
 void Server::addListenSocketToPoll() {
@@ -213,7 +228,7 @@ std::string	Server::buildHttpResponse(const std::string &method, const std::stri
 	bool				add_allow = false;
 	std::string			content_type = "text/html";
 
-	if (this->config.getHost().empty())
+	if (!this->config.getHost())
 		status_code = HttpStatusCode::BadRequest;
 	else if (method != "GET" && method != "POST" && method != "DELETE") {
 		status_code = HttpStatusCode::MethodNotAllowed;
@@ -293,7 +308,11 @@ std::string	Server::buildHttpResponse(const std::string &method, const std::stri
 	}
 	else
 		status_code = HttpStatusCode::InternalServerError;
+	return (returnHttpResponse(status_code, body, content_type,add_allow));
+}
 
+std::string	Server::returnHttpResponse(const HttpStatusCode::e &status_code, std::string &body, std::string &content_type, bool &add_allow)
+{
 	if (status_code != HttpStatusCode::OK) {
 		const std::map<int, std::string>			err_pages = this->config.getErrorPages();
 		std::map<int, std::string>::const_iterator	it = err_pages.find(statusCodeToInt(status_code));
@@ -313,15 +332,6 @@ std::string	Server::buildHttpResponse(const std::string &method, const std::stri
 						  << "</h1></body></html>";
 			body = error_body.str();
 		}
-	}
-
-	if (status_code != HttpStatusCode::OK && body.empty()) {
-		std::ostringstream	error_body;
-		error_body	<< "<!doctype html><html><head><title>" << statusCodeToInt(status_code)
-					<< " " << getStatusMessage(status_code) << "</title></head><body><h1>"
-					<< statusCodeToInt(status_code) << " " << getStatusMessage(status_code)
-					<< "</h1></body></html>";
-		body = error_body.str();
 	}
 
 	std::ostringstream	oss;

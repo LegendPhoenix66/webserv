@@ -20,7 +20,7 @@ private:
 	/** @brief Name of the server (used for virtual hosting). */
 	std::string server_name;
 	/** @brief Host address for the server. */
-	std::string host;
+	uint32_t	host;
 	/** @brief Root directory for serving files. */
 	std::string root;
 	/** @brief List of index files to use when serving directories. */
@@ -78,7 +78,7 @@ public:
 	 * @brief Sets the host address for the server.
 	 * @param host The host address.
 	 */
-	void setHost(std::string host);
+	void setHost(uint32_t host);
 
 	/**
 	 * @brief Sets the root directory for serving files.
@@ -127,7 +127,7 @@ public:
 	 * @brief Gets the host address.
 	 * @return The host address string.
 	 */
-	std::string getHost() const;
+	uint32_t getHost() const;
 
 	/**
 	 * @brief Gets the root directory for the server.

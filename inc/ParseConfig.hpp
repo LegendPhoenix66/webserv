@@ -95,6 +95,8 @@ private:
 	 */
 	void handleClientSize(std::istringstream &iss, ServerConfig &config);
 
+	void handleHost(const std::string &var, std::istringstream &iss, ServerConfig &config);
+
 	void	checkValues();
 
 public:

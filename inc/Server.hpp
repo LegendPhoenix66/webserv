@@ -58,14 +58,15 @@ private:
     void handleClientReadable(size_t &i);
     void handleClientWritable(size_t &i);
     void handleClientErrorOrHangup(size_t &i);
+	void	handleTimeOut();
     void addClient(int client_fd);
     void removeClientAtIndex(size_t &i);
 
 	std::string	readFile(const std::string& path);
 	bool		checkLocationPaths(const std::vector<Location> &locations);
     std::string getMimeType(const std::string &path);
-    std::string
-    buildHttpResponse(const std::string &method, const std::string &path);
+    std::string	buildHttpResponse(const std::string &method, const std::string &path);
+	std::string returnHttpResponse(const HttpStatusCode::e &status_code, std::string &body, std::string &content_type, bool &add_allow);
 
 public:
     /** @brief Default constructor. Initializes an empty server. */

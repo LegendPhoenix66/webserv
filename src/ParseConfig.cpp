@@ -126,8 +126,10 @@ void ParseConfig::parseDirective(std::vector<std::string> &conf_vec, size_t &i, 
 
 	if (var == "listen")
 		handleListen(iss, config);
-	else if (var == "server_name" || var == "root" || var == "host")
+	else if (var == "server_name" || var == "root")
 		handleSimpleDirective(var, iss, config);
+	else if (var == "host")
+		handleHost(var, iss, config);
 	else if (var == "index")
 		handleIndex(iss, config);
 	else if (var == "error_page")
@@ -172,6 +174,31 @@ void	ParseConfig::handleLocation(std::vector<std::string> &conf_vec, size_t &i, 
 	config.addLocationBack(loc);
 }
 
+void ParseConfig::handleHost(const std::string &var, std::istringstream &iss, ServerConfig &config)
+{
+	if (var == "host" && config.getHost())
+		throw InvalidFormat("Config File: Duplicate host directive.");
+	std::string value;
+	if (!(iss >> value))
+		throw InvalidFormat("Config File: Missing value for host.");
+
+	if (value == "localhost")
+		value = "127.0.0.1";
+
+	struct addrinfo hints;
+	std::memset(&hints, 0, sizeof(hints));
+	hints.ai_family = AF_INET;
+	hints.ai_socktype = SOCK_STREAM;
+
+	struct addrinfo *res = NULL;
+	int	ret = getaddrinfo(value.c_str(), NULL, &hints, &res);
+	if (ret == 0 && res != NULL) {
+		struct sockaddr_in *addr = (struct sockaddr_in *)res->ai_addr;
+		config.setHost(addr->sin_addr.s_addr);
+	}
+	freeaddrinfo(res);
+}
+
 void	ParseConfig::handleListen(std::istringstream &iss, ServerConfig &config)
 {
 	if (config.getPort() != 0)
@@ -186,8 +213,7 @@ void	ParseConfig::handleListen(std::istringstream &iss, ServerConfig &config)
 void	ParseConfig::handleSimpleDirective(const std::string &var, std::istringstream &iss, ServerConfig &config)
 {
 	if ((var == "server_name" && !config.getServerName().empty()) ||
-		(var == "root" && !config.getRoot().empty()) ||
-		(var == "host" && !config.getHost().empty()))
+		(var == "root" && !config.getRoot().empty()))
 		throw InvalidFormat("Config File: Duplicate " + var + " directive.");
 
 	std::string value;
@@ -195,7 +221,6 @@ void	ParseConfig::handleSimpleDirective(const std::string &var, std::istringstre
 		throw InvalidFormat("Config File: Missing value for " + var + ".");
 	if (var == "server_name") config.setServerName(value);
 	else if (var == "root") config.setRoot(value);
-	else config.setHost(value);
 }
 
 void	ParseConfig::handleIndex(std::istringstream &iss, ServerConfig &config)
