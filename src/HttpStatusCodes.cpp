@@ -69,3 +69,7 @@ std::string	getStatusMessage(HttpStatusCode::e statusCode) {
 int	statusCodeToInt(HttpStatusCode::e code) {
 	return static_cast<int>(code);
 }
+
+HttpStatusCode::e	getStatusCode(int input) {
+	return static_cast<HttpStatusCode::e>(input);
+}

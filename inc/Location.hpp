@@ -2,6 +2,14 @@
 #define LOCATION_HPP
 
 #include "WebServ.hpp"
+#include "HttpStatusCodes.hpp"
+
+struct ReturnDir {
+	int							code;
+	std::string					url;
+	std::vector<std::string>	text;
+	ReturnDir() : code(0) {}
+};
 
 /**
  * @class Location
@@ -31,7 +39,7 @@ private:
 	/** @brief List of allowed HTTP methods (e.g., GET, POST). */
 	std::vector<std::string> allowed_methods;
 	/** @brief Return directive: pair of status code and URL. */
-	std::pair<int, std::string> return_dir;
+	ReturnDir	return_dir;
 	/** @brief Directory for file uploads in this location. */
 	std::string upload_store;
 	/** @brief Maximum allowed size for client request bodies (in bytes). */
@@ -100,6 +108,10 @@ private:
 	void parseAllowedMethods(std::istringstream &iss);
 
 	void parseClientSize(std::istringstream &iss);
+	void	parseReturn(std::istringstream &iss);
+	bool	isCode(const std::string &str);
+	bool	isURL(const std::string &str);
+	bool	checkValidCode(const int code);
 
 public:
 	/**
@@ -132,6 +144,8 @@ public:
 	 * @throws InvalidFormat if the configuration is invalid.
 	 */
 	Location(std::vector<std::string> &conf_vec, size_t &i);
+
+	bool	hasReturnDir();
 
 	/**
 	 * @brief Gets the location path.
@@ -179,7 +193,7 @@ public:
 	 * @brief Gets the return directive.
 	 * @return A pair of status code and URL.
 	 */
-	std::pair<int, std::string> getReturnDir() const;
+	ReturnDir getReturnDir() const;
 
 	/**
 	 * @brief Gets the upload storage directory.

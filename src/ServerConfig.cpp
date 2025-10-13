@@ -101,3 +101,11 @@ std::map<int, std::string> ServerConfig::getErrorPages() const {
 size_t ServerConfig::getClientMaxBodySize() const {
 	return this->client_max_body_size;
 }
+
+Location	ServerConfig::findLocationForPath(std::string path) const {
+	for (size_t i = 0; i < this->locations.size(); i++) {
+		if (this->locations[i].getPath() == path)
+			return this->locations[i];
+	}
+	return Location();
+}

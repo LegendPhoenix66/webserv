@@ -158,6 +158,8 @@ public:
 	 * @return The client max body size in bytes.
 	 */
 	size_t getClientMaxBodySize() const;
+
+	Location	findLocationForPath(std::string path) const;
 };
 
 #endif

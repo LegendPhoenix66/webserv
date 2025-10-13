@@ -105,6 +105,24 @@ Location::DirectiveType Location::getDirectiveType(const std::string &var) {
 	return DIR_UNKNOWN;
 }
 
+std::vector<std::string>	parseTokens(const std::string &line) {
+	std::vector<std::string>	tokens;
+	std::istringstream			iss(line);
+	std::string					token;
+	while (iss >> std::ws) {
+		if (iss.peek() == '\"') {
+			iss.get();
+			std::getline(iss, token, '\"');
+			tokens.push_back(token);
+		}
+		else {
+			iss >> token;
+			tokens.push_back(token);
+		}
+	}
+	return tokens;
+}
+
 void	Location::parseDirective(const std::string &line) {
 	const size_t	semicolon_pos = line.find(';');
 	if (line.empty() || semicolon_pos == std::string::npos)
@@ -159,8 +177,7 @@ void	Location::parseDirective(const std::string &line) {
 			parseAllowedMethods(iss);
 			break;
 		case DIR_RETURN: {
-			if (!(iss >> this->return_dir.first >> this->return_dir.second))
-				throw InvalidFormat("Config File: Invalid return directive.");
+			parseReturn(iss);
 			break;
 		}
 		case DIR_UPLOAD_STORE: {
@@ -185,6 +202,43 @@ void	Location::parseDirective(const std::string &line) {
 		default:
 			throw InvalidFormat("Config File: Unknown directive in location block.");
 	}
+}
+
+bool	Location::isCode(const std::string &str) {
+	if (str.size() != 3)
+		return false;
+
+	for (size_t i = 0; i < 3; i++) {
+		if (!std::isdigit(str[i]))
+			return false;
+	}
+	return true;
+}
+
+bool	Location::isURL(const std::string &str) {
+	if (str.find("http://") == 0 || str.find("https://") == 0)
+		return true;
+	return false;
+}
+
+bool	Location::checkValidCode(const int code) {
+	if (getStatusMessage(getStatusCode(code)).empty())
+		return false;
+	return true;
+}
+
+void	Location::parseReturn(std::istringstream &iss) {
+	std::string	value;
+	while (iss >> value) {
+		if (isCode(value) && !this->return_dir.code)
+			this->return_dir.code = std::atoi(value.c_str());
+		else if (isURL(value) && this->return_dir.url.empty())
+			this->return_dir.url = value;
+		else
+			this->return_dir.text.push_back(value);
+	}
+	if (!checkValidCode(this->return_dir.code))
+		throw InvalidFormat("Config File: Invalid return directive.");
 }
 
 void	Location::parseClientSize(std::istringstream &iss) {
@@ -272,7 +326,7 @@ std::vector<std::string> Location::getAllowedMethods() const {
 	return this->allowed_methods;
 }
 
-std::pair<int, std::string> Location::getReturnDir() const {
+ReturnDir Location::getReturnDir() const {
 	return this->return_dir;
 }
 
@@ -292,4 +346,10 @@ Location::InvalidFormat::~InvalidFormat() throw()
 
 const char *Location::InvalidFormat::what() const throw() {
 	return this->message.c_str();
+}
+
+bool	Location::hasReturnDir() {
+	if (this->return_dir.code || !this->return_dir.url.empty() || !this->return_dir.text.empty())
+		return true;
+	return false;
 }

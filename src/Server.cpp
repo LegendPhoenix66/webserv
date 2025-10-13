@@ -152,7 +152,11 @@ void Server::handleClientReadable(size_t &i) {
 			std::string method, path, version;
 			iss >> method >> path >> version;
 
-			st.out = buildHttpResponse(method, path);
+			Location	loc = config.findLocationForPath(path);
+			if (loc.hasReturnDir())
+				st.out = returnHttpResponse(loc.getReturnDir().code, loc);
+			else
+				st.out = buildHttpResponse(method, path);
 			st.sent = 0;
 			poll_fds[i].events = POLLOUT;
 		}
@@ -342,5 +346,18 @@ std::string	Server::returnHttpResponse(const HttpStatusCode::e &status_code, std
 		oss << "Allow: GET, POST, DELETE\r\n";
 	oss << "Connection: close\r\n\r\n";
 	oss << body;
+	return oss.str();
+}
+
+std::string	Server::returnHttpResponse(const int &code, const Location loc) {
+	ReturnDir	returnDir = loc.getReturnDir();
+	std::ostringstream	oss;
+	oss << "HTTP/1.1 " << code << " " << getStatusMessage(getStatusCode(code)) << "\r\n";
+	if (!returnDir.url.empty())
+		oss << "Location: " << returnDir.url << "\r\n";
+	oss << "Content-Length: 0\r\n";
+	oss << "Connection: close\r\n\r\n";
+	for (size_t i = 0; i < returnDir.text.size(); i++)
+		oss << returnDir.text[i] << "\r\n";
 	return oss.str();
 }

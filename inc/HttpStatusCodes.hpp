@@ -72,5 +72,6 @@ struct HttpStatusCode {
 
 std::string	getStatusMessage(HttpStatusCode::e code);
 int			statusCodeToInt(HttpStatusCode::e code);
+HttpStatusCode::e	getStatusCode(int input);
 
 #endif
