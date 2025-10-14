@@ -3,6 +3,7 @@
 
 #include "WebServ.hpp"
 #include "ServerConfig.hpp"
+#include "HttpStatusCodes.hpp"
 
 /**
  * @class ParseConfig

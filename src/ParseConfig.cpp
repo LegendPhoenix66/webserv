@@ -76,7 +76,7 @@ void ParseConfig::parseConfigBlock(std::vector<std::string> &conf_vec, size_t &i
 		trim(conf_vec[i]);
 		if (conf_vec[i].empty() || conf_vec[i][0] == '#')
 			continue;
-		if (conf_vec[i][0] == '}') {
+		if (conf_vec[i][conf_vec[i].size() - 1] == '}') {
 			this->configs.push_back(config);
 			end = true;
 			break;
@@ -246,11 +246,9 @@ void	ParseConfig::handleErrorPage(std::istringstream &iss, ServerConfig &config)
 	std::string url = args.back();
 	args.pop_back();
 	for (size_t i = 0; i < args.size(); ++i) {
-		char *endptr;
-		long value = std::strtol(args[i].c_str(), &endptr, 10);
-		if (*endptr != '\0' || value < 0 || value > 65535)
+		if (!isCode(args[i]) || !checkValidCode(std::atoi(args[i].c_str())))
 			throw InvalidFormat("Config File: Invalid error code in error_page directive.");
-		config.addErrorPageBack(static_cast<unsigned short>(value), url);
+		config.addErrorPageBack(std::atoi(args[i].c_str()), url);
 	}
 }
 

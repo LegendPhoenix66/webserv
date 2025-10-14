@@ -70,8 +70,10 @@ struct HttpStatusCode {
 	};
 };
 
-std::string	getStatusMessage(HttpStatusCode::e code);
-int			statusCodeToInt(HttpStatusCode::e code);
+std::string			getStatusMessage(HttpStatusCode::e code);
+int					statusCodeToInt(HttpStatusCode::e code);
 HttpStatusCode::e	getStatusCode(int input);
+bool				isCode(const std::string &str);
+bool				checkValidCode(const int code);
 
 #endif

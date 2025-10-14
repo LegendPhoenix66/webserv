@@ -216,12 +216,11 @@ bool	Server::checkLocationPaths(const std::vector<Location> &locations)
 
 std::string	Server::getMimeType(const std::string &path)
 {
-	if (path.size() > 4 && path.substr(path.size() - 4) == ".css")
-		return "text/css";
-	if (path.size() > 4 && path.substr(path.size() - 4) == ".png")
-		return "image/png";
-	if (path.size() > 4 && path.substr(path.size() - 4) == ".jpg")
-		return "image/jpeg";
+	size_t	type_pos = path.rfind('.');
+	if (type_pos != std::string::npos && type_pos + 1 < path.size()) {
+		std::string type = path.substr(type_pos + 1);
+		return "text/" + type;
+	}
 	return "text/html";
 }
 

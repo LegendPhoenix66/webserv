@@ -38,7 +38,7 @@ Location::Location(std::vector<std::string> &conf_vec, size_t &i) : autoindex(fa
 		if (trimmed_line.empty() || trimmed_line[0] == '#')
 			continue;
 
-		if (trimmed_line[0] == '}') {
+		if (trimmed_line[trimmed_line.size() - 1] == '}') {
 			end = true;
 			break;
 		}
@@ -204,27 +204,10 @@ void	Location::parseDirective(const std::string &line) {
 	}
 }
 
-bool	Location::isCode(const std::string &str) {
-	if (str.size() != 3)
-		return false;
-
-	for (size_t i = 0; i < 3; i++) {
-		if (!std::isdigit(str[i]))
-			return false;
-	}
-	return true;
-}
-
 bool	Location::isURL(const std::string &str) {
 	if (str.find("http://") == 0 || str.find("https://") == 0)
 		return true;
 	return false;
-}
-
-bool	Location::checkValidCode(const int code) {
-	if (getStatusMessage(getStatusCode(code)).empty())
-		return false;
-	return true;
 }
 
 void	Location::parseReturn(std::istringstream &iss) {

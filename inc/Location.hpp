@@ -109,9 +109,7 @@ private:
 
 	void parseClientSize(std::istringstream &iss);
 	void	parseReturn(std::istringstream &iss);
-	bool	isCode(const std::string &str);
 	bool	isURL(const std::string &str);
-	bool	checkValidCode(const int code);
 
 public:
 	/**
