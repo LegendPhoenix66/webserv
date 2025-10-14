@@ -43,7 +43,7 @@ private:
 	 * @brief Trims whitespace from both ends of a line.
 	 * @param line The line to trim.
 	 */
-	static void trim(std::string &line);
+	static std::string trim(std::string &line);
 
 	/**
 	 * @brief Parses a single configuration directive line.
@@ -99,6 +99,8 @@ private:
 	void handleHost(const std::string &var, std::istringstream &iss, ServerConfig &config);
 
 	void	checkValues();
+
+	void	checkBrackets(const std::vector<std::string> conf_vec);
 
 public:
 	/**

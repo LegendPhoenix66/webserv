@@ -29,6 +29,7 @@ ParseConfig::ParseConfig(char *file) {
 	while (std::getline(fileStream, line))
 		conf_vec.push_back(line);
 	size_t i = 0;
+	checkBrackets(conf_vec);
 	while (i < conf_vec.size()) {
 		parseHeader(conf_vec, i);
 		parseConfigBlock(conf_vec, i);
@@ -37,15 +38,24 @@ ParseConfig::ParseConfig(char *file) {
 	fileStream.close();
 }
 
+void	ParseConfig::checkBrackets(const std::vector<std::string> conf_vec) {
+	int	open_count = 0;
+	for (size_t i = 0; i < conf_vec.size(); i++) {
+		open_count += std::count(conf_vec[i].begin(), conf_vec[i].end(), '{');
+		open_count -= std::count(conf_vec[i].begin(), conf_vec[i].end(), '}');
+	}
+	if (open_count != 0)
+		throw InvalidFormat("Config File: Unclosed server block.");
+}
+
 void ParseConfig::parseHeader(std::vector<std::string> &conf_vec, size_t &i)
 {
-	for (; i < conf_vec.size(); i++) {
+	while (i < conf_vec.size()) {
 		trim(conf_vec[i]);
-		if (conf_vec[i].empty() || conf_vec[i][0] == '#')
-			continue;
-		break;
+		if (!conf_vec[i].empty() && conf_vec[i][0] != '#')
+			break;
+		i++;
 	}
-
 	if (i >= conf_vec.size())
 		throw InvalidFormat("Config File: Empty file.");
 
@@ -58,10 +68,7 @@ void ParseConfig::parseHeader(std::vector<std::string> &conf_vec, size_t &i)
 
 	if (conf_vec[i].find('{') == std::string::npos) {
 		i++;
-		if (i >= conf_vec.size())
-			throw InvalidFormat("Config File: Missing server block.");
-		trim(conf_vec[i]);
-		if (conf_vec[i] != "{")
+		if (i >= conf_vec.size() || trim(conf_vec[i]) != "{")
 			throw InvalidFormat("Config File: Missing '{' at start of server block.");
 	}
 	i++;
@@ -70,7 +77,6 @@ void ParseConfig::parseHeader(std::vector<std::string> &conf_vec, size_t &i)
 void ParseConfig::parseConfigBlock(std::vector<std::string> &conf_vec, size_t &i)
 {
 	ServerConfig	config;
-	bool			end = false;
 
 	for (; i < conf_vec.size(); i++) {
 		trim(conf_vec[i]);
@@ -78,20 +84,17 @@ void ParseConfig::parseConfigBlock(std::vector<std::string> &conf_vec, size_t &i
 			continue;
 		if (conf_vec[i][0] == '}') {
 			this->configs.push_back(config);
-			end = true;
 			break;
 		}
 		parseDirective(conf_vec, i, config);
 	}
 	i++;
-
-	if (!end)
-		throw InvalidFormat("Config File: Missing '}' at end of server block.");
 }
 
-void ParseConfig::trim(std::string &line) {
+std::string	ParseConfig::trim(std::string &line) {
 	line.erase(0, line.find_first_not_of(" \t\n\r"));
 	line.erase(line.find_last_not_of(" \t\n\r") + 1);
+	return line;
 }
 
 void ParseConfig::parseDirective(std::vector<std::string> &conf_vec, size_t &i, ServerConfig &config)
