@@ -76,7 +76,7 @@ void ParseConfig::parseConfigBlock(std::vector<std::string> &conf_vec, size_t &i
 		trim(conf_vec[i]);
 		if (conf_vec[i].empty() || conf_vec[i][0] == '#')
 			continue;
-		if (conf_vec[i][conf_vec[i].size() - 1] == '}') {
+		if (conf_vec[i][0] == '}') {
 			this->configs.push_back(config);
 			end = true;
 			break;
