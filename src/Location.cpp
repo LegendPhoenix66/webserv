@@ -38,7 +38,7 @@ Location::Location(std::vector<std::string> &conf_vec, size_t &i) : autoindex(fa
 		if (trimmed_line.empty() || trimmed_line[0] == '#')
 			continue;
 
-		if (trimmed_line[trimmed_line.size() - 1] == '}') {
+		if (trimmed_line[0] == '}') {
 			end = true;
 			break;
 		}
