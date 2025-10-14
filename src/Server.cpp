@@ -315,28 +315,33 @@ std::string	Server::buildHttpResponse(const std::string &method, const std::stri
 	return (returnHttpResponse(status_code, body, content_type,add_allow));
 }
 
-std::string	Server::returnHttpResponse(const HttpStatusCode::e &status_code, std::string &body, std::string &content_type, bool &add_allow)
-{
-	if (status_code != HttpStatusCode::OK) {
-		const std::map<int, std::string>			err_pages = this->config.getErrorPages();
-		std::map<int, std::string>::const_iterator	it = err_pages.find(statusCodeToInt(status_code));
-		if (it != err_pages.end()) {
-			std::string	error_page_path = this->config.getRoot() + it->second;
-			std::string	error_body_content = readFile(error_page_path);
-			if (!error_body_content.empty()) {
-				body = readFile(error_page_path);
-				content_type = getMimeType(error_page_path);
-			}
-		}
-		if (body.empty()) {
-			std::ostringstream error_body;
-			error_body	<< "<!doctype html><html><head><title>" << statusCodeToInt(status_code)
-						  << " " << getStatusMessage(status_code) << "</title></head><body><h1>"
-						  << statusCodeToInt(status_code) << " " << getStatusMessage(status_code)
-						  << "</h1></body></html>";
-			body = error_body.str();
+std::string	Server::errorPageSetup(const HttpStatusCode::e &status_code, std::string &content_type) {
+	std::string									body;
+	const std::map<int, std::string>			err_pages = this->config.getErrorPages();
+	std::map<int, std::string>::const_iterator	it = err_pages.find(statusCodeToInt(status_code));
+	if (it != err_pages.end()) {
+		std::string	error_page_path = this->config.getRoot() + it->second;
+		std::string	error_body_content = readFile(error_page_path);
+		if (!error_body_content.empty()) {
+			body = readFile(error_page_path);
+			content_type = getMimeType(error_page_path);
 		}
 	}
+	if (body.empty()) {
+		std::ostringstream error_body;
+		error_body	<< "<!doctype html><html><head><title>" << statusCodeToInt(status_code)
+					  << " " << getStatusMessage(status_code) << "</title></head><body><h1>"
+					  << statusCodeToInt(status_code) << " " << getStatusMessage(status_code)
+					  << "</h1></body></html>";
+		body = error_body.str();
+	}
+	return body;
+}
+
+std::string	Server::returnHttpResponse(const HttpStatusCode::e &status_code, std::string &body, std::string &content_type, bool &add_allow)
+{
+	if (status_code != HttpStatusCode::OK)
+		body = errorPageSetup(status_code, content_type);
 
 	std::ostringstream	oss;
 	oss << "HTTP/1.1 " << statusCodeToInt(status_code) << " " << getStatusMessage(status_code) << "\r\n";
@@ -353,10 +358,19 @@ std::string	Server::returnHttpResponse(const int &code, const Location loc) {
 	ReturnDir	returnDir = loc.getReturnDir();
 	std::ostringstream	oss;
 	oss << "HTTP/1.1 " << code << " " << getStatusMessage(getStatusCode(code)) << "\r\n";
-	if (!returnDir.url.empty())
+	if (!returnDir.url.empty()) {
 		oss << "Location: " << returnDir.url << "\r\n";
-	oss << "Content-Length: 0\r\n";
-	oss << "Connection: close\r\n\r\n";
+		oss << "Content-Length: 0\r\n";
+		oss << "Connection: close\r\n\r\n";
+	}
+	else {
+		std::string	content_type = "text/html";
+		std::string	body = errorPageSetup(getStatusCode(code), content_type);
+		oss << "Content-Type: " << content_type << "; charset=UTF-8\r\n";
+		oss << "Content-Length: " << body.size() << "\r\n";
+		oss << "Connection: close\r\n\r\n";
+		oss << body;
+	}
 	for (size_t i = 0; i < returnDir.text.size(); i++)
 		oss << returnDir.text[i] << "\r\n";
 	return oss.str();

@@ -68,6 +68,7 @@ private:
     std::string	buildHttpResponse(const std::string &method, const std::string &path);
 	std::string returnHttpResponse(const HttpStatusCode::e &status_code, std::string &body, std::string &content_type, bool &add_allow);
 	std::string	returnHttpResponse(const int &code, const Location loc);
+	std::string	errorPageSetup(const HttpStatusCode::e &status_code, std::string &content_type);
 
 public:
     /** @brief Default constructor. Initializes an empty server. */
