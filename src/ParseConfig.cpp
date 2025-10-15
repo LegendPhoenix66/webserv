@@ -126,6 +126,8 @@ void ParseConfig::parseDirective(std::vector<std::string> &conf_vec, size_t &i, 
 	std::istringstream	iss(conf_vec[i]);
 	std::string			var;
 	iss >> var;
+	std::string			dir_args = conf_vec[i].substr(var.size(), semicolon_pos - var.size());
+	trim(dir_args);
 
 	if (var == "listen")
 		handleListen(iss, config);
@@ -136,7 +138,7 @@ void ParseConfig::parseDirective(std::vector<std::string> &conf_vec, size_t &i, 
 	else if (var == "index")
 		handleIndex(iss, config);
 	else if (var == "error_page")
-		handleErrorPage(iss, config);
+		handleErrorPage(dir_args, config);
 	else if (var == "client_max_body_size")
 		handleClientSize(iss, config);
 	else if (!var.empty())
@@ -236,22 +238,50 @@ void	ParseConfig::handleIndex(std::istringstream &iss, ServerConfig &config)
 		config.addIndexBack(value);
 }
 
-void	ParseConfig::handleErrorPage(std::istringstream &iss, ServerConfig &config)
+void ParseConfig::handleErrorPage(std::string &line, ServerConfig &config)
 {
-	std::vector <std::string> args;
-	std::string arg;
-	while (iss >> arg)
-		args.push_back(arg);
+	std::vector<std::string>	args;
+	size_t	i = 0;
+	while (i < line.size()) {
+		while (i < line.size() && std::isspace(line[i]))
+			i++;
+		if (i >= line.size())
+			break;
 
-	if (args.size() < 2)
-		throw InvalidFormat("Config File: Invalid error_page directive.");
+		if (line[i] == '\"' || line[i] == '\'') {
+			char	quote = line[i++];
+			size_t	start = i;
+			while (i < line.size() && line[i] != quote)
+				i++;
+			if (i >= line.size())
+				throw InvalidFormat("Config File: Invalid use of quotes in return directive.");
+			std::string	token = line.substr(start, i - start);
+			if (!token.empty())
+				args.push_back(token);
+			i++;
+			if (i < line.size() && !std::isspace(line[i]))
+				throw InvalidFormat("Config File: Invalid use of quotes in return directive.");
+		}
+		else {
+			size_t	start = i;
+			while (i < line.size() && !std::isspace(line[i]) && line[i] != '\"' && line[i] != '\'')
+				i++;
+			if (i < line.size() && (line[i] == '\"' || line[i] == '\''))
+				throw InvalidFormat("Config File: Invalid use of quotes in return directive.");
+			std::string	token = line.substr(start, i - start);
+			if (!token.empty())
+				args.push_back(token);
+		}
+		i++;
+	}
 
-	std::string url = args.back();
+	std::string	status_file = args.back();
 	args.pop_back();
-	for (size_t i = 0; i < args.size(); ++i) {
+
+	for (size_t i = 0; i < args.size(); i++) {
 		if (!isCode(args[i]) || !checkValidCode(std::atoi(args[i].c_str())))
 			throw InvalidFormat("Config File: Invalid error code in error_page directive.");
-		config.addErrorPageBack(std::atoi(args[i].c_str()), url);
+		config.addErrorPageBack(std::atoi(args[i].c_str()), status_file);
 	}
 }
 

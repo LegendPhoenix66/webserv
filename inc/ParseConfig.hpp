@@ -8,7 +8,6 @@
 /*
 TODO:
  handle quotes in:
-	- error_page
 	- cgi_pass
 	- server_name
  handle different file types in location:
@@ -97,7 +96,7 @@ private:
 	 * @param iss The input string stream containing error codes and URL.
 	 * @throws InvalidFormat if the directive is invalid.
 	 */
-	void handleErrorPage(std::istringstream &iss , ServerConfig &config);
+	void handleErrorPage(std::string &line, ServerConfig &config);
 
 	/**
 	 * @brief Handles the 'client_max_body_size' directive.
