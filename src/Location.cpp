@@ -27,13 +27,7 @@ Location::Location(std::vector<std::string> &conf_vec, size_t &i) : autoindex(fa
 	std::string trimmed_line;
 	bool		end = false;
 	while (++i < conf_vec.size()) {
-		size_t first = conf_vec[i].find_first_not_of(" \t\n\r");
-		if (std::string::npos == first) {
-			trimmed_line = "";
-		} else {
-			size_t last = conf_vec[i].find_last_not_of(" \t\n\r");
-			trimmed_line = conf_vec[i].substr(first, (last - first + 1));
-		}
+		trimmed_line = trim(conf_vec[i]);
 
 		if (trimmed_line.empty() || trimmed_line[0] == '#')
 			continue;
@@ -48,6 +42,12 @@ Location::Location(std::vector<std::string> &conf_vec, size_t &i) : autoindex(fa
 
 	if (!end)
 		throw InvalidFormat("Config File: Missing '}' at end of location block.");
+}
+
+std::string	Location::trim(std::string line) {
+	line.erase(0, line.find_first_not_of(" \t\n\r"));
+	line.erase(line.find_last_not_of(" \t\n\r") + 1);
+	return line;
 }
 
 // helper function to parse the `location /path {` line
@@ -105,24 +105,6 @@ Location::DirectiveType Location::getDirectiveType(const std::string &var) {
 	return DIR_UNKNOWN;
 }
 
-std::vector<std::string>	parseTokens(const std::string &line) {
-	std::vector<std::string>	tokens;
-	std::istringstream			iss(line);
-	std::string					token;
-	while (iss >> std::ws) {
-		if (iss.peek() == '\"') {
-			iss.get();
-			std::getline(iss, token, '\"');
-			tokens.push_back(token);
-		}
-		else {
-			iss >> token;
-			tokens.push_back(token);
-		}
-	}
-	return tokens;
-}
-
 void	Location::parseDirective(const std::string &line) {
 	const size_t	semicolon_pos = line.find(';');
 	if (line.empty() || semicolon_pos == std::string::npos)
@@ -142,6 +124,7 @@ void	Location::parseDirective(const std::string &line) {
 	std::istringstream iss(line.substr(0, semicolon_pos));
 	std::string var;
 	iss >> var;
+	std::string	dir_args = trim(line.substr(var.size(), semicolon_pos - var.size()));
 
 	switch (getDirectiveType(var)) {
 		case DIR_ROOT: {
@@ -177,7 +160,7 @@ void	Location::parseDirective(const std::string &line) {
 			parseAllowedMethods(iss);
 			break;
 		case DIR_RETURN: {
-			parseReturn(iss);
+			parseReturn(iss, dir_args);
 			break;
 		}
 		case DIR_UPLOAD_STORE: {
@@ -210,18 +193,67 @@ bool	Location::isURL(const std::string &str) {
 	return false;
 }
 
-void	Location::parseReturn(std::istringstream &iss) {
+void Location::parseReturn(std::istringstream &iss, std::string &line) {
+	if (hasReturnDir())
+		throw InvalidFormat("Config File: Duplicate return directives.");
+
 	std::string	value;
-	while (iss >> value) {
-		if (isCode(value) && !this->return_dir.code)
-			this->return_dir.code = std::atoi(value.c_str());
-		else if (isURL(value) && this->return_dir.url.empty())
-			this->return_dir.url = value;
-		else
-			this->return_dir.text.push_back(value);
+
+	if (!(iss >> value) || !isCode(value) || !checkValidCode(std::atoi(value.c_str())))
+		throw InvalidFormat("Config File: First argument of \"return\" must be a valid status code.");
+	this->return_dir.code = std::atoi(value.c_str());
+
+	std::string	args_str = trim(line.substr(value.size()));
+	if (args_str.empty())
+		return;
+
+	std::vector<std::string>	args;
+	size_t	i = 0;
+	while (i < args_str.size()) {
+		while (i < args_str.size() && std::isspace(args_str[i]))
+			i++;
+		if (i >= args_str.size())
+			break;
+
+		if (args_str[i] == '\"' || args_str[i] == '\'') {
+			char	quote = args_str[i++];
+			size_t	start = i;
+			while (i < args_str.size() && args_str[i] != quote)
+				i++;
+			if (i >= args_str.size())
+				throw InvalidFormat("Config File: Invalid use of quotes in return directive.");
+			std::string	token = args_str.substr(start, i - start);
+			if (!token.empty())
+				args.push_back(token);
+			i++;
+			if (i < args_str.size() && !std::isspace(args_str[i]))
+				throw InvalidFormat("Config File: Invalid use of quotes in return directive.");
+		}
+		else {
+			size_t	start = i;
+			while (i < args_str.size() && !std::isspace(args_str[i]) && args_str[i] != '\"' && args_str[i] != '\'')
+				i++;
+			if (i < args_str.size() && (args_str[i] == '\"' || args_str[i] == '\''))
+				throw InvalidFormat("Config File: Invalid use of quotes in return directive.");
+			std::string	token = args_str.substr(start, i - start);
+			if (!token.empty())
+				args.push_back(token);
+		}
+		i++;
 	}
-	if (!checkValidCode(this->return_dir.code))
+
+	if (args.size() > 2)
 		throw InvalidFormat("Config File: Invalid return directive.");
+
+	for (size_t j = 0; j < args.size(); j++) {
+		if (isURL(args[j])) {
+			if (!this->return_dir.url.empty())
+				throw InvalidFormat("Config File: Invalid return directive.");
+			this->return_dir.url = args[j];
+		}
+		else
+			this->return_dir.text.push_back(args[j]);
+	}
 }
 
 void	Location::parseClientSize(std::istringstream &iss) {

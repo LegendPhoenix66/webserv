@@ -108,8 +108,9 @@ private:
 	void parseAllowedMethods(std::istringstream &iss);
 
 	void parseClientSize(std::istringstream &iss);
-	void	parseReturn(std::istringstream &iss);
+	void parseReturn(std::istringstream &iss, std::string &line);
 	bool	isURL(const std::string &str);
+	std::string	trim(std::string line);
 
 public:
 	/**

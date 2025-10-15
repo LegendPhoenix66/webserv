@@ -5,6 +5,16 @@
 #include "ServerConfig.hpp"
 #include "HttpStatusCodes.hpp"
 
+/*
+TODO:
+ handle quotes in:
+	- error_page
+	- cgi_pass
+	- server_name
+ handle different file types in location:
+ 	- location ~ \.(gif|jpg|png)
+*/
+
 /**
  * @class ParseConfig
  * @brief Parses and loads server configuration from a file.
