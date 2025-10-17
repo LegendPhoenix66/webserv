@@ -3,6 +3,8 @@
 
 #include "WebServ.hpp"
 #include "HttpStatusCodes.hpp"
+#include "ParseUtils.hpp"
+#include "InvalidFormat.hpp"
 
 struct ReturnDir {
 	int							code;
@@ -41,7 +43,7 @@ private:
 	/** @brief Return directive: pair of status code and URL. */
 	ReturnDir	return_dir;
 	/** @brief Directory for file uploads in this location. */
-	std::string upload_store;
+	std::string upload_path;
 	/** @brief Maximum allowed size for client request bodies (in bytes). */
 	size_t	client_max_body_size;
 	std::vector<std::string>	limit_except;
@@ -66,7 +68,7 @@ private:
 		DIR_AUTOINDEX,      /**< The 'autoindex' directive. */
 		DIR_ALLOWED_METHODS,/**< The 'allowed_methods' directive. */
 		DIR_RETURN,         /**< The 'return' directive. */
-		DIR_UPLOAD_STORE,   /**< The 'upload_store' directive. */
+		DIR_UPLOAD_PATH,   /**< The 'upload_path' directive. */
 		DIR_CLIENT_MAX_BODY_SIZE, /**< The 'client_max_body_size' directive. */
 		DIR_LIMIT_EXCEPT,   /**< The 'limit_except' directive. */
 		DIR_EMPTY,
@@ -107,12 +109,10 @@ private:
 	 */
 	void parseAllowedMethods(std::istringstream &iss);
 
-	void parseClientSize(std::istringstream &iss);
-	void parseReturn(std::istringstream &iss, std::string &line);
-	void parseCGIPath(std::string &line);
+	void	parseClientSize(std::istringstream &iss);
+	void	parseReturn(std::istringstream &iss, const std::string var, const std::string line);
 	void	parseCGIExt(std::istringstream &iss);
 	bool	isURL(const std::string &str);
-	std::string	trim(std::string line);
 
 public:
 	/**
@@ -207,24 +207,6 @@ public:
 	 * @return The size in bytes.
 	 */
 	size_t getClientMaxBodySize() const;
-
-	/**
-	 * @class InvalidFormat
-	 * @brief Exception thrown when the configuration format is invalid.
-	 */
-	class InvalidFormat : public std::exception {
-	private:
-		std::string message;
-	public:
-		/**
-		 * @brief Returns an error message describing the invalid format.
-		 * @return The error message string.
-		 */
-		explicit InvalidFormat(std::string message = "Invalid format.");
-		~InvalidFormat() throw();
-		const char *what() const throw();
-	};
-
 };
 
 
