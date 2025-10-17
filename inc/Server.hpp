@@ -58,7 +58,6 @@ private:
     void handleClientReadable(size_t &i);
     void handleClientWritable(size_t &i);
     void handleClientErrorOrHangup(size_t &i);
-	void	handleTimeOut();
     void addClient(int client_fd);
     void removeClientAtIndex(size_t &i);
 

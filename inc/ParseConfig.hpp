@@ -8,10 +8,7 @@
 /*
 TODO:
  handle quotes in:
-	- cgi_pass
-	- server_name
- handle different file types in location:
- 	- location ~ \.(gif|jpg|png)
+ 	- root
 */
 
 /**
@@ -83,7 +80,7 @@ private:
 	 * @param iss The input string stream containing the value.
 	 * @throws InvalidFormat if the directive is invalid.
 	 */
-	void handleSimpleDirective(const std::string &var, std::istringstream &iss, ServerConfig &config);
+	void handleRoot(std::istringstream &iss, ServerConfig &config);
 
 	/**
 	 * @brief Handles the 'index' directive.

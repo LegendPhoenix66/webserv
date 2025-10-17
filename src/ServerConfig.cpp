@@ -9,7 +9,6 @@ ServerConfig::ServerConfig() :
 
 ServerConfig::ServerConfig(const ServerConfig &copy)
 		: port(copy.port),
-		  server_name(copy.server_name),
 		  host(copy.host),
 		  root(copy.root),
 		  index(copy.index),
@@ -28,7 +27,6 @@ ServerConfig::~ServerConfig() {
 
 void ServerConfig::swap(ServerConfig &other) {
 	std::swap(this->port, other.port);
-	std::swap(this->server_name, other.server_name);
 	std::swap(this->host, other.host);
 	std::swap(this->root, other.root);
 	std::swap(this->index, other.index);
@@ -40,10 +38,6 @@ void ServerConfig::swap(ServerConfig &other) {
 
 void ServerConfig::setPort(uint16_t port) {
 	this->port = port;
-}
-
-void ServerConfig::setServerName(std::string name) {
-	this->server_name = name;
 }
 
 void ServerConfig::setHost(uint32_t host) {
@@ -72,10 +66,6 @@ void ServerConfig::addErrorPageBack(int code, std::string url) {
 
 uint16_t ServerConfig::getPort() const {
 	return port;
-}
-
-std::string ServerConfig::getServerName() const {
-	return server_name;
 }
 
 uint32_t ServerConfig::getHost() const {

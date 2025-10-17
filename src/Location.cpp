@@ -5,7 +5,7 @@ Location::Location() : autoindex(false), client_max_body_size(0) {}
 Location::Location(const Location &other)
 		: path(other.path),
 		  root(other.root),
-		  cgi_pass(other.cgi_pass),
+		  cgi_ext(other.cgi_ext),
 		  cgi_path(other.cgi_path),
 		  index(other.index),
 		  autoindex(other.autoindex),
@@ -60,22 +60,7 @@ void	Location::parseDeclaration(std::vector<std::string> &conf_vec, size_t &i) {
 	if (keyword != "location")
 		throw InvalidFormat("Config File: Invalid location declaration.");
 
-	ss >> token;
-	if (token == "~") {
-		std::string	tmp;
-		std::getline(ss, tmp, '{');
-
-		size_t	first = tmp.find_first_not_of(" \t");
-		size_t	last = tmp.find_last_not_of(" \t");
-		if (first == std::string::npos)
-			this->path = "";
-		else
-			this->path = token + " " + tmp.substr(first, last - first + 1);
-		ss.putback('{');
-	}
-	else
-		this->path = token;
-
+	ss >> this->path;
 	if (this->path.empty() || this->path == "{")
 		throw InvalidFormat("Config File: Missing or invalid path in location declaration.");
 
@@ -92,7 +77,7 @@ void	Location::parseDeclaration(std::vector<std::string> &conf_vec, size_t &i) {
 
 Location::DirectiveType Location::getDirectiveType(const std::string &var) {
 	if (var == "root") return DIR_ROOT;
-	if (var == "cgi_pass") return DIR_CGI_PASS;
+	if (var == "cgi_ext") return DIR_CGI_EXT;
 	if (var == "cgi_path") return DIR_CGI_PATH;
 	if (var == "index") return DIR_INDEX;
 	if (var == "autoindex") return DIR_AUTOINDEX;
@@ -133,16 +118,12 @@ void	Location::parseDirective(const std::string &line) {
 			iss >> this->root;
 			break;
 		}
-		case DIR_CGI_PASS: {
-			if (!this->cgi_pass.empty())
-				throw InvalidFormat("Config File: Duplicate cgi_pass directive.");
-			iss >> this->cgi_pass;
+		case DIR_CGI_EXT: {
+			parseCGIExt(iss);
 			break;
 		}
 		case DIR_CGI_PATH: {
-			if (!this->cgi_path.empty())
-				throw InvalidFormat("Config File: Duplicate cgi_path directive.");
-			iss >> this->cgi_path;
+			parseCGIPath(dir_args);
 			break;
 		}
 		case DIR_INDEX:
@@ -185,6 +166,60 @@ void	Location::parseDirective(const std::string &line) {
 		default:
 			throw InvalidFormat("Config File: Unknown directive in location block.");
 	}
+}
+
+void Location::parseCGIPath(std::string &line) {
+	std::vector<std::string>	paths;
+	size_t	i = 0;
+	while (i < line.size()) {
+		while (i < line.size() && std::isspace(line[i]))
+			i++;
+		if (i >= line.size())
+			break;
+
+		if (line[i] == '\"' || line[i] == '\'') {
+			char	quote = line[i++];
+			size_t	start = i;
+			while (i < line.size() && line[i] != quote)
+				i++;
+			if (i >= line.size())
+				throw InvalidFormat("Config File: Invalid use of quotes in cgi_path directive.");
+			std::string	token = line.substr(start, i - start);
+			if (!token.empty())
+				paths.push_back(token);
+			i++;
+			if (i < line.size() && !std::isspace(line[i]))
+				throw InvalidFormat("Config File: Invalid use of quotes in cgi_path directive.");
+		}
+		else {
+			size_t	start = i;
+			while (i < line.size() && !std::isspace(line[i]) && line[i] != '\"' && line[i] != '\'')
+				i++;
+			if (i < line.size() && (line[i] == '\"' || line[i] == '\''))
+				throw InvalidFormat("Config File: Invalid use of quotes in cgi_path directive.");
+			std::string	token = line.substr(start, i - start);
+			if (!token.empty())
+				paths.push_back(token);
+		}
+		i++;
+	}
+	if (paths.empty())
+		throw InvalidFormat("Config File: Missing arguments in cgi_path directive.");
+	this->cgi_path = paths;
+}
+
+void	Location::parseCGIExt(std::istringstream &iss) {
+	std::vector<std::string>	extensions;
+	std::string					ext;
+
+	while (iss >> ext) {
+		if (ext.empty() || ext[0] != '.' || ext.find('.', 1) != std::string::npos)
+			throw InvalidFormat("Config File: Invalid extension in cgi_ext directive.");
+		extensions.push_back(ext);
+	}
+	if (extensions.empty())
+		throw InvalidFormat("Config File: Missing arguments in cgi_ext directive.");
+	this->cgi_ext = extensions;
 }
 
 bool	Location::isURL(const std::string &str) {
@@ -280,6 +315,8 @@ void	Location::parseClientSize(std::istringstream &iss) {
 	}
 
 	this->client_max_body_size = static_cast<size_t>(value) * multiplier;
+	if (iss >> value_str)
+		throw InvalidFormat("Config File: client_max_body_size directive requires only one argument.");
 }
 
 // helper to handle index parsing
@@ -303,7 +340,7 @@ void Location::parseAllowedMethods(std::istringstream &iss) {
 void Location::swap(Location &other) {
 	std::swap(this->path, other.path);
 	std::swap(this->root, other.root);
-	std::swap(this->cgi_pass, other.cgi_pass);
+	std::swap(this->cgi_ext, other.cgi_ext);
 	std::swap(this->cgi_path, other.cgi_path);
 	std::swap(this->index, other.index);
 	std::swap(this->autoindex, other.autoindex);
@@ -321,11 +358,11 @@ std::string Location::getRoot() const {
 	return this->root;
 }
 
-std::string Location::getCgiPass() const {
-	return this->cgi_pass;
+std::vector<std::string> Location::getCgiExt() const {
+	return this->cgi_ext;
 }
 
-std::string Location::getCgiPath() const {
+std::vector<std::string> Location::getCgiPath() const {
 	return this->cgi_path;
 }
 

@@ -90,20 +90,6 @@ void Server::runEventLoop() {
 	close(listen_fd);
 }
 
-void	Server::handleTimeOut() {
-	std::string	body;
-	std::string	content_type = "text/html";
-	bool		add_allow = false;
-	std::string	response = returnHttpResponse(HttpStatusCode::RequestTimeout, body, content_type, add_allow);
-
-	/*for (size_t i = 0; i < poll_fds.size(); i++) {
-		send(poll_fds[i].fd, response.c_str(), response.size(), 0);
-		close(poll_fds[i].fd);
-		client_states.erase(poll_fds[i].fd);
-	}
-	poll_fds.erase(poll_fds.begin() + 1, poll_fds.end());*/
-}
-
 void Server::addListenSocketToPoll() {
 	pollfd listen_pollfd;
 	listen_pollfd.fd = listen_fd;

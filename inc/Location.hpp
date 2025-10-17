@@ -29,9 +29,9 @@ private:
 	/** @brief The root directory for this location. */
 	std::string root;
 	/** @brief The CGI handler to use for this location. */
-	std::string cgi_pass;
+	std::vector<std::string>	cgi_ext;
 	/** @brief The path to the CGI executable. */
-	std::string cgi_path;
+	std::vector<std::string>	cgi_path;
 	/** @brief List of index files for this location. */
 	std::vector<std::string> index;
 	/** @brief Whether autoindexing is enabled for this location. */
@@ -60,7 +60,7 @@ private:
 	 */
 	enum DirectiveType {
 		DIR_ROOT,           /**< The 'root' directive. */
-		DIR_CGI_PASS,       /**< The 'cgi_pass' directive. */
+		DIR_CGI_EXT,       /**< The 'cgi_ext' directive. */
 		DIR_CGI_PATH,       /**< The 'cgi_path' directive. */
 		DIR_INDEX,          /**< The 'index' directive. */
 		DIR_AUTOINDEX,      /**< The 'autoindex' directive. */
@@ -109,6 +109,8 @@ private:
 
 	void parseClientSize(std::istringstream &iss);
 	void parseReturn(std::istringstream &iss, std::string &line);
+	void parseCGIPath(std::string &line);
+	void	parseCGIExt(std::istringstream &iss);
 	bool	isURL(const std::string &str);
 	std::string	trim(std::string line);
 
@@ -162,13 +164,13 @@ public:
 	 * @brief Gets the CGI handler.
 	 * @return The CGI handler string.
 	 */
-	std::string getCgiPass() const;
+	std::vector<std::string> getCgiExt() const;
 
 	/**
 	 * @brief Gets the CGI executable path.
 	 * @return The CGI path string.
 	 */
-	std::string getCgiPath() const;
+	std::vector<std::string> getCgiPath() const;
 
 	/**
 	 * @brief Gets the list of index files.

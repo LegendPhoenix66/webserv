@@ -17,8 +17,6 @@ class ServerConfig {
 private:
 	/** @brief Port number the server listens on. */
 	uint16_t port;
-	/** @brief Name of the server (used for virtual hosting). */
-	std::string server_name;
 	/** @brief Host address for the server. */
 	uint32_t	host;
 	/** @brief Root directory for serving files. */
@@ -69,12 +67,6 @@ public:
 	void setPort(uint16_t port);
 
 	/**
-	 * @brief Sets the server name (for virtual hosting).
-	 * @param name The server name.
-	 */
-	void setServerName(std::string name);
-
-	/**
 	 * @brief Sets the host address for the server.
 	 * @param host The host address.
 	 */
@@ -116,12 +108,6 @@ public:
 	 * @return The port number.
 	 */
 	uint16_t getPort() const;
-
-	/**
-	 * @brief Gets the server name.
-	 * @return The server name string.
-	 */
-	std::string getServerName() const;
 
 	/**
 	 * @brief Gets the host address.

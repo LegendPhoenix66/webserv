@@ -131,8 +131,8 @@ void ParseConfig::parseDirective(std::vector<std::string> &conf_vec, size_t &i, 
 
 	if (var == "listen")
 		handleListen(iss, config);
-	else if (var == "server_name" || var == "root")
-		handleSimpleDirective(var, iss, config);
+	else if (var == "root")
+		handleRoot(iss, config);
 	else if (var == "host")
 		handleHost(var, iss, config);
 	else if (var == "index")
@@ -171,6 +171,8 @@ void	ParseConfig::handleClientSize(std::istringstream &iss, ServerConfig &config
 	}
 
 	config.setClientMaxBodySize(static_cast<size_t>(value) * multiplier);
+	if (iss >> value_str)
+		throw InvalidFormat("Config File: client_max_body_size directive requires only one argument.");
 }
 
 void	ParseConfig::handleLocation(std::vector<std::string> &conf_vec, size_t &i, ServerConfig &config)
@@ -202,6 +204,8 @@ void ParseConfig::handleHost(const std::string &var, std::istringstream &iss, Se
 		config.setHost(addr->sin_addr.s_addr);
 	}
 	freeaddrinfo(res);
+	if (iss >> value)
+		throw InvalidFormat("Config File: Host directive requires only one argument.");
 }
 
 void	ParseConfig::handleListen(std::istringstream &iss, ServerConfig &config)
@@ -213,19 +217,21 @@ void	ParseConfig::handleListen(std::istringstream &iss, ServerConfig &config)
 	if (!(iss >> value) || value < 0 || value > 65535)
 		throw InvalidFormat("Config File: Invalid port number.");
 	config.setPort(static_cast<unsigned short>(value));
+	if (iss >> value)
+		throw InvalidFormat("Config File: Listen directive requires only one argument.");
 }
 
-void	ParseConfig::handleSimpleDirective(const std::string &var, std::istringstream &iss, ServerConfig &config)
+void	ParseConfig::handleRoot(std::istringstream &iss, ServerConfig &config)
 {
-	if ((var == "server_name" && !config.getServerName().empty()) ||
-		(var == "root" && !config.getRoot().empty()))
-		throw InvalidFormat("Config File: Duplicate " + var + " directive.");
+	if (!config.getRoot().empty())
+		throw InvalidFormat("Config File: Duplicate root directive.");
 
 	std::string value;
 	if (!(iss >> value))
-		throw InvalidFormat("Config File: Missing value for " + var + ".");
-	if (var == "server_name") config.setServerName(value);
-	else if (var == "root") config.setRoot(value);
+		throw InvalidFormat("Config File: Missing value for root.");
+	config.setRoot(value);
+	if (iss >> value)
+		throw InvalidFormat("Config File: Root directive requires only one argument.");
 }
 
 void	ParseConfig::handleIndex(std::istringstream &iss, ServerConfig &config)
