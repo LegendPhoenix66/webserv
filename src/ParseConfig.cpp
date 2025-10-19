@@ -63,7 +63,6 @@ void ParseConfig::parseHeader(std::vector<std::string> &conf_vec, size_t &i)
 
 	std::istringstream ss(conf_vec[i]);
 	std::string keyword;
-	std::string	temp;
 	ss >> keyword;
 	if (keyword != "server")
 		throw InvalidFormat("Invalid header.");
@@ -230,7 +229,7 @@ void ParseConfig::handleErrorPage(std::string var, std::string line, ServerConfi
 
 	for (size_t i = 0; i < args.size(); i++) {
 		if (!isCode(args[i]) || !checkValidCode(std::atoi(args[i].c_str())))
-			throw InvalidFormat("Invalid error code in error_page directive.");
+			throw InvalidFormat("Invalid status code in error_page directive.");
 		config.addErrorPageBack(std::atoi(args[i].c_str()), status_file);
 	}
 }

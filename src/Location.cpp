@@ -1,6 +1,6 @@
 #include "../inc/Location.hpp"
 
-Location::Location() : autoindex(false), client_max_body_size(0) {}
+Location::Location() : client_max_body_size(0) {}
 
 Location::Location(const Location &other)
 		: path(other.path),
@@ -8,7 +8,6 @@ Location::Location(const Location &other)
 		  cgi_ext(other.cgi_ext),
 		  cgi_path(other.cgi_path),
 		  index(other.index),
-		  autoindex(other.autoindex),
 		  allowed_methods(other.allowed_methods),
 		  return_dir(other.return_dir),
 		  upload_path(other.upload_path),
@@ -21,7 +20,7 @@ Location	&Location::operator=(Location copy) {
 
 Location::~Location() {}
 
-Location::Location(std::vector<std::string> &conf_vec, size_t &i) : autoindex(false), client_max_body_size(0) {
+Location::Location(std::vector<std::string> &conf_vec, size_t &i) : client_max_body_size(0) {
 	parseDeclaration(conf_vec, i);
 
 	std::string trimmed_line;
@@ -74,7 +73,6 @@ Location::DirectiveType Location::getDirectiveType(const std::string &var) {
 	if (var == "cgi_ext") return DIR_CGI_EXT;
 	if (var == "cgi_path") return DIR_CGI_PATH;
 	if (var == "index") return DIR_INDEX;
-	if (var == "autoindex") return DIR_AUTOINDEX;
 	if (var == "allowed_methods") return DIR_ALLOWED_METHODS;
 	if (var == "return") return DIR_RETURN;
 	if (var == "upload_path") return DIR_UPLOAD_PATH;
@@ -112,14 +110,6 @@ void	Location::parseDirective(const std::string &line) {
 		case DIR_INDEX:
 			parseIndex(iss);
 			break;
-		case DIR_AUTOINDEX: {
-			std::string value;
-			iss >> value;
-			if (value != "on" && value != "off")
-				throw InvalidFormat("Invalid autoindex value.");
-			this->autoindex = (value == "on");
-			break;
-		}
 		case DIR_ALLOWED_METHODS:
 			parseAllowedMethods(iss);
 			break;
@@ -254,7 +244,6 @@ void Location::swap(Location &other) {
 	std::swap(this->cgi_ext, other.cgi_ext);
 	std::swap(this->cgi_path, other.cgi_path);
 	std::swap(this->index, other.index);
-	std::swap(this->autoindex, other.autoindex);
 	std::swap(this->allowed_methods, other.allowed_methods);
 	std::swap(this->return_dir, other.return_dir);
 	std::swap(this->upload_path, other.upload_path);
@@ -279,10 +268,6 @@ std::vector<std::string> Location::getCgiPath() const {
 
 std::vector<std::string> Location::getIndex() const {
 	return this->index;
-}
-
-bool Location::getAutoindex() const {
-	return this->autoindex;
 }
 
 std::vector<std::string> Location::getAllowedMethods() const {

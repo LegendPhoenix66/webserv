@@ -36,8 +36,6 @@ private:
 	std::vector<std::string>	cgi_path;
 	/** @brief List of index files for this location. */
 	std::vector<std::string> index;
-	/** @brief Whether autoindexing is enabled for this location. */
-	bool autoindex;
 	/** @brief List of allowed HTTP methods (e.g., GET, POST). */
 	std::vector<std::string> allowed_methods;
 	/** @brief Return directive: pair of status code and URL. */
@@ -65,7 +63,6 @@ private:
 		DIR_CGI_EXT,       /**< The 'cgi_ext' directive. */
 		DIR_CGI_PATH,       /**< The 'cgi_path' directive. */
 		DIR_INDEX,          /**< The 'index' directive. */
-		DIR_AUTOINDEX,      /**< The 'autoindex' directive. */
 		DIR_ALLOWED_METHODS,/**< The 'allowed_methods' directive. */
 		DIR_RETURN,         /**< The 'return' directive. */
 		DIR_UPLOAD_PATH,   /**< The 'upload_path' directive. */
@@ -177,12 +174,6 @@ public:
 	 * @return A vector of index file names.
 	 */
 	std::vector<std::string> getIndex() const;
-
-	/**
-	 * @brief Checks if autoindexing is enabled.
-	 * @return True if autoindex is on, false otherwise.
-	 */
-	bool getAutoindex() const;
 
 	/**
 	 * @brief Gets the list of allowed HTTP methods.

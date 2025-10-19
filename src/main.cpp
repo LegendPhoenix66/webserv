@@ -31,8 +31,6 @@ int main(int argc, char **argv) {
 
 	try {
 		std::vector<ServerConfig> configs = init_config(argv[1]);
-		/*for (size_t i = 0; i < configs.size(); i++)
-			print_conf(configs[i], i + 1);*/
 		start_server(configs);
 	}
 	catch (std::exception &e) {
