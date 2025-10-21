@@ -237,23 +237,23 @@ std::string	Server::buildHttpResponse(const std::string &method, const std::stri
 			if (stat(file_path.c_str(), &st) == 0) {
 				if (S_ISDIR(st.st_mode)) {
 					std::vector <std::string> index = this->config.getIndex();
-					for (size_t i = 0; i < index.size(); i++) {
+					for (size_t i = 0; i < index.size(); i++)
+					{
 						std::string candidate = file_path;
 						if (candidate[candidate.size() - 1] != '/')
 							candidate += "/";
 						candidate += index[i];
 						std::ifstream file(candidate.c_str());
-						if (file.good()) {
+						if (file.good())
+						{
 							body = readFile(candidate);
 							status_code = HttpStatusCode::OK;
 							content_type = getMimeType(candidate);
 							break;
 						}
-						else {
-							status_code = HttpStatusCode::NotFound;
-							break;
-						}
 					}
+					if (body.empty())
+						status_code = HttpStatusCode::Forbidden;
 				}
 				else {
 					std::ifstream	file(file_path.c_str());
