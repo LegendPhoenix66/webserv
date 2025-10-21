@@ -115,7 +115,7 @@ void ParseConfig::parseDirective(std::vector<std::string> &conf_vec, size_t &i, 
 	else if (var == "host")
 		handleHost(iss, config);
 	else if (var == "index")
-		handleIndex(iss, config);
+		handleIndex(var, dir_args, config);
 	else if (var == "error_page")
 		handleErrorPage(var, dir_args, config);
 	else if (var == "client_max_body_size")
@@ -210,14 +210,12 @@ void	ParseConfig::handleRoot(const std::string var, const std::string line, Serv
 	config.setRoot(path);
 }
 
-void	ParseConfig::handleIndex(std::istringstream &iss, ServerConfig &config)
+void	ParseConfig::handleIndex(const std::string var, const std::string line, ServerConfig &config)
 {
 	if (!config.getIndex().empty())
 		throw InvalidFormat("Duplicate index directive.");
 
-	std::string value;
-	while (iss >> value)
-		config.addIndexBack(value);
+	config.setIndex(extractQuotedArgs(var, line));
 }
 
 void ParseConfig::handleErrorPage(std::string var, std::string line, ServerConfig &config)

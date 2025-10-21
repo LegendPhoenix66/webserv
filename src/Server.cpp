@@ -249,6 +249,10 @@ std::string	Server::buildHttpResponse(const std::string &method, const std::stri
 							content_type = getMimeType(candidate);
 							break;
 						}
+						else {
+							status_code = HttpStatusCode::NotFound;
+							break;
+						}
 					}
 				}
 				else {

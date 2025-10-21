@@ -76,7 +76,7 @@ private:
 	 * @brief Handles the 'index' directive.
 	 * @param iss The input string stream containing index file names.
 	 */
-	void handleIndex(std::istringstream &iss, ServerConfig &config);
+	void handleIndex(const std::string var, const std::string line, ServerConfig &config);
 
 	/**
 	 * @brief Handles the 'error_page' directive.

@@ -89,6 +89,7 @@ public:
 	 * @param index The index file name.
 	 */
 	void addIndexBack(const std::string &index);
+	void	setIndex(const std::vector<std::string> &index);
 
 	/**
 	 * @brief Adds a location block for request routing.

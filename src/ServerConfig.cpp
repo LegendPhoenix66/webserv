@@ -56,6 +56,10 @@ void ServerConfig::addIndexBack(const std::string &index) {
 	this->index.push_back(index);
 }
 
+void	ServerConfig::setIndex(const std::vector <std::string> &index) {
+	this->index = index;
+}
+
 void ServerConfig::addLocationBack(const Location &loc) {
 	this->locations.push_back(loc);
 }
