@@ -98,7 +98,7 @@ private:
 	 * @brief Parses the index directive and populates the index vector.
 	 * @param iss The input string stream containing index values.
 	 */
-	void parseIndex(std::istringstream &iss);
+	void parseIndex(const std::string var, const std::string line);
 
 	/**
 	 * @brief Parses the allowed_methods directive and populates the allowed_methods vector.
@@ -180,6 +180,7 @@ public:
 	 * @return A vector of allowed method names.
 	 */
 	std::vector<std::string> getAllowedMethods() const;
+	std::string	findMethod(const std::string &method) const;
 
 	/**
 	 * @brief Gets the return directive.

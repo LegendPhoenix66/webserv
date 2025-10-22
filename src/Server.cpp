@@ -137,12 +137,16 @@ void Server::handleClientReadable(size_t &i) {
 			std::istringstream iss(req_line);
 			std::string method, path, version;
 			iss >> method >> path >> version;
+			if (path[path.size() - 1] == '/')
+				path.erase(path.size() - 1);
 
 			Location	loc = config.findLocationForPath(path);
-			if (loc.hasReturnDir())
+			if (!loc.getAllowedMethods().empty() && loc.findMethod(method).empty())
+				st.out = returnHttpResponse(HttpStatusCode::MethodNotAllowed, loc);
+			else if (loc.hasReturnDir())
 				st.out = returnHttpResponse(loc.getReturnDir().code, loc);
 			else
-				st.out = buildHttpResponse(method, path);
+				st.out = buildHttpResponse(method, path, loc);
 			st.sent = 0;
 			poll_fds[i].events = POLLOUT;
 		}
@@ -210,21 +214,16 @@ std::string	Server::getMimeType(const std::string &path)
 	return "text/html";
 }
 
-std::string	Server::buildHttpResponse(const std::string &method, const std::string &path)
+std::string	Server::buildHttpResponse(const std::string &method, const std::string &path, const Location &loc)
 {
 	std::string			body;
 	HttpStatusCode::e	status_code;
-	bool				add_allow = false;
 	std::string			content_type = "text/html";
 
 	if (!this->config.getHost())
 		status_code = HttpStatusCode::BadRequest;
-	else if (method != "GET" && method != "POST" && method != "DELETE") {
-		status_code = HttpStatusCode::MethodNotAllowed;
-		add_allow = true;
-	}
 	else if (method == "GET") {
-		const std::string	root = (!this->config.getRoot().empty()) ? this->config.getRoot() : std::string(".");
+		const std::string	root = (!loc.getRoot().empty()) ? loc.getRoot() : this->config.getRoot();
 		std::string			req_path = path.empty() ? "/" : path;
 		if (req_path[0] != '/')
 			req_path.insert(req_path.begin(), '/');
@@ -278,7 +277,7 @@ std::string	Server::buildHttpResponse(const std::string &method, const std::stri
 			status_code = HttpStatusCode::NotImplemented;
 	}
 	else if (method == "DELETE") {
-		const std::string	root = (!this->config.getRoot().empty()) ? this->config.getRoot() : std::string(".");
+		const std::string	root = (!loc.getRoot().empty()) ? loc.getRoot() : this->config.getRoot();
 		std::string			req_path = path;
 		if (req_path.find("..") != std::string::npos)
 			status_code = HttpStatusCode::Forbidden;
@@ -301,7 +300,7 @@ std::string	Server::buildHttpResponse(const std::string &method, const std::stri
 	}
 	else
 		status_code = HttpStatusCode::InternalServerError;
-	return (returnHttpResponse(status_code, body, content_type,add_allow));
+	return (returnHttpResponse(status_code, body, content_type));
 }
 
 std::string	Server::errorPageSetup(const HttpStatusCode::e &status_code, std::string &content_type) {
@@ -327,7 +326,7 @@ std::string	Server::errorPageSetup(const HttpStatusCode::e &status_code, std::st
 	return body;
 }
 
-std::string	Server::returnHttpResponse(const HttpStatusCode::e &status_code, std::string &body, std::string &content_type, bool &add_allow)
+std::string Server::returnHttpResponse(const HttpStatusCode::e &status_code, std::string &body, std::string &content_type)
 {
 	if (status_code != HttpStatusCode::OK)
 		body = errorPageSetup(status_code, content_type);
@@ -336,8 +335,6 @@ std::string	Server::returnHttpResponse(const HttpStatusCode::e &status_code, std
 	oss << "HTTP/1.1 " << statusCodeToInt(status_code) << " " << getStatusMessage(status_code) << "\r\n";
 	oss << "Content-Type: " << content_type << "; charset=UTF-8\r\n";
 	oss << "Content-Length: " << body.size() << "\r\n";
-	if (add_allow)
-		oss << "Allow: GET, POST, DELETE\r\n";
 	oss << "Connection: close\r\n\r\n";
 	oss << body;
 	return oss.str();
@@ -353,10 +350,22 @@ std::string	Server::returnHttpResponse(const int &code, const Location loc) {
 		oss << "Connection: close\r\n\r\n";
 	}
 	else {
-		std::string	content_type = "text/html";
-		std::string	body = errorPageSetup(getStatusCode(code), content_type);
+		std::string content_type = "text/html";
+		std::string body = errorPageSetup(getStatusCode(code), content_type);
 		oss << "Content-Type: " << content_type << "; charset=UTF-8\r\n";
 		oss << "Content-Length: " << body.size() << "\r\n";
+		if (code == 405)
+		{
+			oss << "Allow: ";
+			std::vector <std::string> allowed_methods = loc.getAllowedMethods();
+			for (size_t i = 0; i < allowed_methods.size(); i++)
+			{
+				oss << allowed_methods[i];
+				if (i < allowed_methods.size() - 1)
+					oss << ", ";
+			}
+			oss << "\r\n";
+		}
 		oss << "Connection: close\r\n\r\n";
 		oss << body;
 	}

@@ -56,6 +56,8 @@ void	Location::parseDeclaration(std::vector<std::string> &conf_vec, size_t &i) {
 	ss >> this->path;
 	if (this->path.empty() || this->path == "{")
 		throw InvalidFormat("Missing or invalid path in location declaration.");
+	if (this->path[this->path.size() - 1] == '/')
+		this->path.erase(this->path.size() - 1);
 
 	ss >> token;
 	if (token == "{")
@@ -108,7 +110,7 @@ void	Location::parseDirective(const std::string &line) {
 			break;
 		}
 		case DIR_INDEX:
-			parseIndex(iss);
+			parseIndex(var, dir_args);
 			break;
 		case DIR_ALLOWED_METHODS:
 			parseAllowedMethods(iss);
@@ -221,12 +223,10 @@ void	Location::parseClientSize(std::istringstream &iss) {
 }
 
 // helper to handle index parsing
-void Location::parseIndex(std::istringstream &iss) {
+void Location::parseIndex(const std::string var, const std::string line) {
 	if (!this->index.empty())
 		throw InvalidFormat("Duplicate index directive.");
-	std::string value;
-	while (iss >> value)
-		this->index.push_back(value);
+	this->index = extractQuotedArgs(var, line);
 }
 
 // helper to handle allowed_methods parsing
@@ -272,6 +272,14 @@ std::vector<std::string> Location::getIndex() const {
 
 std::vector<std::string> Location::getAllowedMethods() const {
 	return this->allowed_methods;
+}
+
+std::string	Location::findMethod(const std::string &method) const {
+	for (size_t i = 0; i < this->allowed_methods.size(); i++) {
+		if (this->allowed_methods[i] == method)
+			return this->allowed_methods[i];
+	}
+	return "";
 }
 
 ReturnDir Location::getReturnDir() const {
