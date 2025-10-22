@@ -219,11 +219,9 @@ std::string	Server::buildHttpResponse(const std::string &method, const std::stri
 	std::string			body;
 	HttpStatusCode::e	status_code;
 	std::string			content_type = "text/html";
+	const std::string	root = (!loc.getRoot().empty()) ? loc.getRoot() : this->config.getRoot();
 
-	if (!this->config.getHost())
-		status_code = HttpStatusCode::BadRequest;
-	else if (method == "GET") {
-		const std::string	root = (!loc.getRoot().empty()) ? loc.getRoot() : this->config.getRoot();
+	if (method == "GET") {
 		std::string			req_path = path.empty() ? "/" : path;
 		if (req_path[0] != '/')
 			req_path.insert(req_path.begin(), '/');
@@ -277,7 +275,6 @@ std::string	Server::buildHttpResponse(const std::string &method, const std::stri
 			status_code = HttpStatusCode::NotImplemented;
 	}
 	else if (method == "DELETE") {
-		const std::string	root = (!loc.getRoot().empty()) ? loc.getRoot() : this->config.getRoot();
 		std::string			req_path = path;
 		if (req_path.find("..") != std::string::npos)
 			status_code = HttpStatusCode::Forbidden;
