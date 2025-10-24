@@ -209,6 +209,8 @@ std::string	Server::getMimeType(const std::string &path)
 	size_t	type_pos = path.rfind('.');
 	if (type_pos != std::string::npos && type_pos + 1 < path.size()) {
 		std::string type = path.substr(type_pos + 1);
+		if (type == "htm")
+			type += "l";
 		return "text/" + type;
 	}
 	return "text/html";
@@ -316,8 +318,8 @@ std::string	Server::errorPageSetup(const HttpStatusCode::e &status_code, std::st
 		std::ostringstream error_body;
 		error_body	<< "<!doctype html><html><head><title>" << statusCodeToInt(status_code)
 					  << " " << getStatusMessage(status_code) << "</title></head><body><h1>"
-					  << statusCodeToInt(status_code) << " " << getStatusMessage(status_code)
-					  << "</h1></body></html>";
+					  << statusCodeToInt(status_code) << "</h1><h2>" << getStatusMessage(status_code)
+					  << "</h2></body></html>";
 		body = error_body.str();
 	}
 	return body;
