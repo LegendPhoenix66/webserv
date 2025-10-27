@@ -47,7 +47,7 @@ void Server::start() {
 	sockaddr_in addr;
 	std::memset(&addr, 0, sizeof(addr));
 	addr.sin_family = AF_INET;
-	addr.sin_addr.s_addr = INADDR_ANY; //config.getHost();
+	addr.sin_addr.s_addr = (config.getHost() == 0) ? INADDR_ANY : config.getHost(); //config.getHost();
 	addr.sin_port = htons(config.getPort());
 	if (bind(listen_fd, (struct sockaddr *) &addr, sizeof(addr)) < 0) {
 		std::cerr << "bind() failed" << std::endl;
@@ -73,15 +73,16 @@ void Server::runEventLoop() {
 			break;
 		}
 		for (size_t i = 0; i < poll_fds.size(); ++i) {
-			if (poll_fds[i].revents & POLLIN) {
+			int	re = poll_fds[i].revents;
+			if (re & POLLIN) {
 				if (poll_fds[i].fd == listen_fd) {
 					handleListenEvent();
 				} else {
 					handleClientReadable(i);
 				}
-			} else if (poll_fds[i].revents & POLLOUT) {
+			} else if (re & POLLOUT) {
 				handleClientWritable(i);
-			} else if (poll_fds[i].revents & (POLLERR | POLLHUP | POLLNVAL)) {
+			} else if (re & (POLLERR | POLLHUP | POLLNVAL)) {
 				handleClientErrorOrHangup(i);
 			}
 		}
@@ -136,8 +137,16 @@ void Server::handleClientReadable(size_t &i) {
 			std::istringstream iss(req_line);
 			std::string method, path, version;
 			iss >> method >> path >> version;
+			if (path[path.size() - 1] == '/')
+				path.erase(path.size() - 1);
 
-			st.out = buildHttpResponse(method, path);
+			Location	loc = config.findLocationForPath(path);
+			if (!loc.getAllowedMethods().empty() && loc.findMethod(method).empty())
+				st.out = returnHttpResponse(HttpStatusCode::MethodNotAllowed, loc);
+			else if (loc.hasReturnDir())
+				st.out = returnHttpResponse(loc.getReturnDir().code, loc);
+			else
+				st.out = buildHttpResponse(method, path, loc);
 			st.sent = 0;
 			poll_fds[i].events = POLLOUT;
 		}
@@ -197,50 +206,129 @@ bool	Server::checkLocationPaths(const std::vector<Location> &locations)
 
 std::string	Server::getMimeType(const std::string &path)
 {
-	if (path.size() > 4 && path.substr(path.size() - 4) == ".css")
-		return "text/css";
-	if (path.size() > 4 && path.substr(path.size() - 4) == ".png")
-		return "image/png";
-	if (path.size() > 4 && path.substr(path.size() - 4) == ".jpg")
-		return "image/jpeg";
+	size_t	type_pos = path.rfind('.');
+	if (type_pos != std::string::npos && type_pos + 1 < path.size()) {
+		std::string type = path.substr(type_pos + 1);
+		if (type == "htm")
+			type += "l";
+		return "text/" + type;
+	}
 	return "text/html";
 }
 
-std::string	Server::buildHttpResponse(const std::string &method, const std::string &path)
+std::string	Server::buildHttpResponse(const std::string &method, const std::string &path, const Location &loc)
 {
 	std::string			body;
 	HttpStatusCode::e	status_code;
 	std::string			content_type = "text/html";
+	const std::string	root = (!loc.getRoot().empty()) ? loc.getRoot() : this->config.getRoot();
 
-	if (this->config.getHost().empty())
-		status_code = HttpStatusCode::BadRequest;
-	else if (method != "GET" && method != "POST" && method != "DELETE")
-		status_code = HttpStatusCode::MethodNotAllowed;
-	else if (method == "GET" && !checkLocationPaths(this->config.getLocations())) {
-		std::string		file_path = "." + (path == "/" ? "/index.html" : path);
-		std::ifstream	file(file_path.c_str());
+	if (method == "GET") {
+		std::string			req_path = path.empty() ? "/" : path;
+		if (req_path[0] != '/')
+			req_path.insert(req_path.begin(), '/');
 
-		if (file.good()) {
-			body = readFile(file_path);
-			status_code = HttpStatusCode::OK;
-			content_type = getMimeType(file_path);
+		if (req_path.find("..") != std::string::npos)
+			status_code = HttpStatusCode::Forbidden;
+		else {
+			struct stat st;
+			std::string	file_path = root + req_path;
+			if (stat(file_path.c_str(), &st) == 0) {
+				if (S_ISDIR(st.st_mode)) {
+					std::vector <std::string> index = this->config.getIndex();
+					for (size_t i = 0; i < index.size(); i++)
+					{
+						std::string candidate = file_path;
+						if (candidate[candidate.size() - 1] != '/')
+							candidate += "/";
+						candidate += index[i];
+						std::ifstream file(candidate.c_str());
+						if (file.good())
+						{
+							body = readFile(candidate);
+							status_code = HttpStatusCode::OK;
+							content_type = getMimeType(candidate);
+							break;
+						}
+					}
+					if (body.empty())
+						status_code = HttpStatusCode::Forbidden;
+				}
+				else {
+					std::ifstream	file(file_path.c_str());
+					if (file.good()) {
+						body = readFile(file_path);
+						status_code = HttpStatusCode::OK;
+						content_type = getMimeType(file_path);
+					}
+					else
+						status_code = HttpStatusCode::NotFound;
+				}
+			}
+			else
+				status_code = HttpStatusCode::NotFound;
 		}
-		else
-			status_code = HttpStatusCode::NotFound;
 	}
-	else if (method == "POST" || method == "DELETE")
-		status_code = HttpStatusCode::NotImplemented;
+	else if (method == "POST") {
+		size_t max_size = this->config.getClientMaxBodySize();
+		if (max_size > 0)
+			status_code = HttpStatusCode::ContentTooLarge;
+		else
+			status_code = HttpStatusCode::NotImplemented;
+	}
+	else if (method == "DELETE") {
+		std::string			req_path = path;
+		if (req_path.find("..") != std::string::npos)
+			status_code = HttpStatusCode::Forbidden;
+		else {
+			if (req_path.empty() || req_path[0] != '/')
+				req_path.insert(req_path.begin(), '/');
+			std::string	file_path = root + req_path;
+
+			std::ifstream	file(file_path.c_str());
+			if (!file.good())
+				status_code = HttpStatusCode::NotFound;
+			else {
+				file.close();
+				if (std::remove(file_path.c_str()) == 0)
+					status_code = HttpStatusCode::NoContent;
+				else
+					status_code = HttpStatusCode::Forbidden;
+			}
+		}
+	}
 	else
 		status_code = HttpStatusCode::InternalServerError;
+	return (returnHttpResponse(status_code, body, content_type));
+}
 
-	if (status_code != HttpStatusCode::OK && body.empty()) {
-		std::ostringstream	error_body;
+std::string	Server::errorPageSetup(const HttpStatusCode::e &status_code, std::string &content_type) {
+	std::string									body;
+	const std::map<int, std::string>			err_pages = this->config.getErrorPages();
+	std::map<int, std::string>::const_iterator	it = err_pages.find(statusCodeToInt(status_code));
+	if (it != err_pages.end()) {
+		std::string	error_page_path = this->config.getRoot() + it->second;
+		std::string	error_body_content = readFile(error_page_path);
+		if (!error_body_content.empty()) {
+			body = readFile(error_page_path);
+			content_type = getMimeType(error_page_path);
+		}
+	}
+	if (body.empty()) {
+		std::ostringstream error_body;
 		error_body	<< "<!doctype html><html><head><title>" << statusCodeToInt(status_code)
-					<< " " << getStatusMessage(status_code) << "</title></head><body><h1>"
-					<< statusCodeToInt(status_code) << " " << getStatusMessage(status_code)
-					<< "</h1></body></html>";
+					  << " " << getStatusMessage(status_code) << "</title></head><body><h1>"
+					  << statusCodeToInt(status_code) << "</h1><h2>" << getStatusMessage(status_code)
+					  << "</h2></body></html>";
 		body = error_body.str();
 	}
+	return body;
+}
+
+std::string Server::returnHttpResponse(const HttpStatusCode::e &status_code, std::string &body, std::string &content_type)
+{
+	if (status_code != HttpStatusCode::OK)
+		body = errorPageSetup(status_code, content_type);
 
 	std::ostringstream	oss;
 	oss << "HTTP/1.1 " << statusCodeToInt(status_code) << " " << getStatusMessage(status_code) << "\r\n";
@@ -248,5 +336,39 @@ std::string	Server::buildHttpResponse(const std::string &method, const std::stri
 	oss << "Content-Length: " << body.size() << "\r\n";
 	oss << "Connection: close\r\n\r\n";
 	oss << body;
+	return oss.str();
+}
+
+std::string	Server::returnHttpResponse(const int &code, const Location loc) {
+	ReturnDir	returnDir = loc.getReturnDir();
+	std::ostringstream	oss;
+	oss << "HTTP/1.1 " << code << " " << getStatusMessage(getStatusCode(code)) << "\r\n";
+	if (!returnDir.url.empty()) {
+		oss << "Location: " << returnDir.url << "\r\n";
+		oss << "Content-Length: 0\r\n";
+		oss << "Connection: close\r\n\r\n";
+	}
+	else {
+		std::string content_type = "text/html";
+		std::string body = errorPageSetup(getStatusCode(code), content_type);
+		oss << "Content-Type: " << content_type << "; charset=UTF-8\r\n";
+		oss << "Content-Length: " << body.size() << "\r\n";
+		if (code == 405)
+		{
+			oss << "Allow: ";
+			std::vector <std::string> allowed_methods = loc.getAllowedMethods();
+			for (size_t i = 0; i < allowed_methods.size(); i++)
+			{
+				oss << allowed_methods[i];
+				if (i < allowed_methods.size() - 1)
+					oss << ", ";
+			}
+			oss << "\r\n";
+		}
+		oss << "Connection: close\r\n\r\n";
+		oss << body;
+	}
+	for (size_t i = 0; i < returnDir.text.size(); i++)
+		oss << returnDir.text[i] << "\r\n";
 	return oss.str();
 }

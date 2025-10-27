@@ -17,10 +17,8 @@ class ServerConfig {
 private:
 	/** @brief Port number the server listens on. */
 	uint16_t port;
-	/** @brief Name of the server (used for virtual hosting). */
-	std::string server_name;
 	/** @brief Host address for the server. */
-	std::string host;
+	uint32_t	host;
 	/** @brief Root directory for serving files. */
 	std::string root;
 	/** @brief List of index files to use when serving directories. */
@@ -69,16 +67,10 @@ public:
 	void setPort(uint16_t port);
 
 	/**
-	 * @brief Sets the server name (for virtual hosting).
-	 * @param name The server name.
-	 */
-	void setServerName(std::string name);
-
-	/**
 	 * @brief Sets the host address for the server.
 	 * @param host The host address.
 	 */
-	void setHost(std::string host);
+	void setHost(uint32_t host);
 
 	/**
 	 * @brief Sets the root directory for serving files.
@@ -97,6 +89,7 @@ public:
 	 * @param index The index file name.
 	 */
 	void addIndexBack(const std::string &index);
+	void	setIndex(const std::vector<std::string> &index);
 
 	/**
 	 * @brief Adds a location block for request routing.
@@ -118,16 +111,10 @@ public:
 	uint16_t getPort() const;
 
 	/**
-	 * @brief Gets the server name.
-	 * @return The server name string.
-	 */
-	std::string getServerName() const;
-
-	/**
 	 * @brief Gets the host address.
 	 * @return The host address string.
 	 */
-	std::string getHost() const;
+	uint32_t getHost() const;
 
 	/**
 	 * @brief Gets the root directory for the server.
@@ -158,6 +145,8 @@ public:
 	 * @return The client max body size in bytes.
 	 */
 	size_t getClientMaxBodySize() const;
+
+	Location	findLocationForPath(std::string path) const;
 };
 
 #endif

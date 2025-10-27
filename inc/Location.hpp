@@ -2,6 +2,16 @@
 #define LOCATION_HPP
 
 #include "WebServ.hpp"
+#include "HttpStatusCodes.hpp"
+#include "ParseUtils.hpp"
+#include "InvalidFormat.hpp"
+
+struct ReturnDir {
+	int							code;
+	std::string					url;
+	std::vector<std::string>	text;
+	ReturnDir() : code(0) {}
+};
 
 /**
  * @class Location
@@ -21,19 +31,18 @@ private:
 	/** @brief The root directory for this location. */
 	std::string root;
 	/** @brief The CGI handler to use for this location. */
-	std::string cgi_pass;
+	std::vector<std::string>	cgi_ext;
 	/** @brief The path to the CGI executable. */
-	std::string cgi_path;
+	std::vector<std::string>	cgi_path;
 	/** @brief List of index files for this location. */
 	std::vector<std::string> index;
-	/** @brief Whether autoindexing is enabled for this location. */
-	bool autoindex;
 	/** @brief List of allowed HTTP methods (e.g., GET, POST). */
 	std::vector<std::string> allowed_methods;
 	/** @brief Return directive: pair of status code and URL. */
-	std::pair<int, std::string> return_dir;
+	ReturnDir	return_dir;
 	/** @brief Directory for file uploads in this location. */
-	std::string upload_store;
+	std::string upload_path;
+	bool		autoindex;
 	/** @brief Maximum allowed size for client request bodies (in bytes). */
 	size_t	client_max_body_size;
 	std::vector<std::string>	limit_except;
@@ -52,15 +61,16 @@ private:
 	 */
 	enum DirectiveType {
 		DIR_ROOT,           /**< The 'root' directive. */
-		DIR_CGI_PASS,       /**< The 'cgi_pass' directive. */
+		DIR_CGI_EXT,       /**< The 'cgi_ext' directive. */
 		DIR_CGI_PATH,       /**< The 'cgi_path' directive. */
 		DIR_INDEX,          /**< The 'index' directive. */
-		DIR_AUTOINDEX,      /**< The 'autoindex' directive. */
 		DIR_ALLOWED_METHODS,/**< The 'allowed_methods' directive. */
 		DIR_RETURN,         /**< The 'return' directive. */
-		DIR_UPLOAD_STORE,   /**< The 'upload_store' directive. */
+		DIR_UPLOAD_PATH,   /**< The 'upload_path' directive. */
 		DIR_CLIENT_MAX_BODY_SIZE, /**< The 'client_max_body_size' directive. */
 		DIR_LIMIT_EXCEPT,   /**< The 'limit_except' directive. */
+		DIR_AUTOINDEX,
+		DIR_EMPTY,
 		DIR_UNKNOWN         /**< Unknown or unsupported directive. */
 	};
 
@@ -90,7 +100,7 @@ private:
 	 * @brief Parses the index directive and populates the index vector.
 	 * @param iss The input string stream containing index values.
 	 */
-	void parseIndex(std::istringstream &iss);
+	void parseIndex(const std::string var, const std::string line);
 
 	/**
 	 * @brief Parses the allowed_methods directive and populates the allowed_methods vector.
@@ -98,7 +108,10 @@ private:
 	 */
 	void parseAllowedMethods(std::istringstream &iss);
 
-	void parseClientSize(std::istringstream &iss);
+	void	parseClientSize(std::istringstream &iss);
+	void	parseReturn(std::istringstream &iss, const std::string var, const std::string line);
+	void	parseCGIExt(std::istringstream &iss);
+	bool	isURL(const std::string &str);
 
 public:
 	/**
@@ -132,6 +145,8 @@ public:
 	 */
 	Location(std::vector<std::string> &conf_vec, size_t &i);
 
+	bool	hasReturnDir();
+
 	/**
 	 * @brief Gets the location path.
 	 * @return The path string.
@@ -148,13 +163,13 @@ public:
 	 * @brief Gets the CGI handler.
 	 * @return The CGI handler string.
 	 */
-	std::string getCgiPass() const;
+	std::vector<std::string> getCgiExt() const;
 
 	/**
 	 * @brief Gets the CGI executable path.
 	 * @return The CGI path string.
 	 */
-	std::string getCgiPath() const;
+	std::vector<std::string> getCgiPath() const;
 
 	/**
 	 * @brief Gets the list of index files.
@@ -163,22 +178,17 @@ public:
 	std::vector<std::string> getIndex() const;
 
 	/**
-	 * @brief Checks if autoindexing is enabled.
-	 * @return True if autoindex is on, false otherwise.
-	 */
-	bool getAutoindex() const;
-
-	/**
 	 * @brief Gets the list of allowed HTTP methods.
 	 * @return A vector of allowed method names.
 	 */
 	std::vector<std::string> getAllowedMethods() const;
+	std::string	findMethod(const std::string &method) const;
 
 	/**
 	 * @brief Gets the return directive.
 	 * @return A pair of status code and URL.
 	 */
-	std::pair<int, std::string> getReturnDir() const;
+	ReturnDir getReturnDir() const;
 
 	/**
 	 * @brief Gets the upload storage directory.
@@ -191,24 +201,7 @@ public:
 	 * @return The size in bytes.
 	 */
 	size_t getClientMaxBodySize() const;
-
-	/**
-	 * @class InvalidFormat
-	 * @brief Exception thrown when the configuration format is invalid.
-	 */
-	class InvalidFormat : public std::exception {
-	private:
-		std::string message;
-	public:
-		/**
-		 * @brief Returns an error message describing the invalid format.
-		 * @return The error message string.
-		 */
-		explicit InvalidFormat(std::string message = "Invalid format.");
-		~InvalidFormat() throw();
-		const char *what() const throw();
-	};
-
+	bool	getAutoindex() const;
 };
 
 

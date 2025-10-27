@@ -20,6 +20,8 @@ void ParseConfig::swap(ParseConfig &other) {
 }
 
 ParseConfig::ParseConfig(char *file) {
+	if (isDirectory(file))
+		throw IsDirectoryError();
 	std::ifstream	fileStream;
 	fileStream.open(file);
 	if (!fileStream.is_open())
@@ -29,6 +31,7 @@ ParseConfig::ParseConfig(char *file) {
 	while (std::getline(fileStream, line))
 		conf_vec.push_back(line);
 	size_t i = 0;
+	checkBrackets(conf_vec);
 	while (i < conf_vec.size()) {
 		parseHeader(conf_vec, i);
 		parseConfigBlock(conf_vec, i);
@@ -37,32 +40,38 @@ ParseConfig::ParseConfig(char *file) {
 	fileStream.close();
 }
 
+void	ParseConfig::checkBrackets(const std::vector<std::string> conf_vec) {
+	int	open_count = 0;
+	for (size_t i = 0; i < conf_vec.size(); i++) {
+		open_count += std::count(conf_vec[i].begin(), conf_vec[i].end(), '{');
+		open_count -= std::count(conf_vec[i].begin(), conf_vec[i].end(), '}');
+	}
+	if (open_count != 0)
+		throw InvalidFormat("Unclosed server block.");
+}
+
 void ParseConfig::parseHeader(std::vector<std::string> &conf_vec, size_t &i)
 {
-	for (; i < conf_vec.size(); i++) {
-		trim(conf_vec[i]);
-		if (conf_vec[i].empty() || conf_vec[i][0] == '#')
-			continue;
-		break;
+	while (i < conf_vec.size()) {
+		conf_vec[i] = trim(conf_vec[i]);
+		if (!conf_vec[i].empty() && conf_vec[i][0] != '#')
+			break;
+		i++;
 	}
-
 	if (i >= conf_vec.size())
-		throw InvalidFormat("Config File: Empty file.");
+		throw InvalidFormat("Empty file.");
 
 	std::istringstream ss(conf_vec[i]);
 	std::string keyword;
-	std::string	temp;
 	ss >> keyword;
 	if (keyword != "server")
-		throw InvalidFormat("Config File: Invalid header.");
+		throw InvalidFormat("Invalid header.");
 
 	if (conf_vec[i].find('{') == std::string::npos) {
 		i++;
-		if (i >= conf_vec.size())
-			throw InvalidFormat("Config File: Missing server block.");
-		trim(conf_vec[i]);
-		if (conf_vec[i] != "{")
-			throw InvalidFormat("Config File: Missing '{' at start of server block.");
+		conf_vec[i] = trim(conf_vec[i]);
+		if (i >= conf_vec.size() || conf_vec[i] != "{")
+			throw InvalidFormat("Missing '{' at start of server block.");
 	}
 	i++;
 }
@@ -70,75 +79,65 @@ void ParseConfig::parseHeader(std::vector<std::string> &conf_vec, size_t &i)
 void ParseConfig::parseConfigBlock(std::vector<std::string> &conf_vec, size_t &i)
 {
 	ServerConfig	config;
-	bool			end = false;
 
 	for (; i < conf_vec.size(); i++) {
-		trim(conf_vec[i]);
+		conf_vec[i] = trim(conf_vec[i]);
 		if (conf_vec[i].empty() || conf_vec[i][0] == '#')
 			continue;
 		if (conf_vec[i][0] == '}') {
 			this->configs.push_back(config);
-			end = true;
 			break;
 		}
 		parseDirective(conf_vec, i, config);
 	}
 	i++;
-
-	if (!end)
-		throw InvalidFormat("Config File: Missing '}' at end of server block.");
-}
-
-void ParseConfig::trim(std::string &line) {
-	line.erase(0, line.find_first_not_of(" \t\n\r"));
-	line.erase(line.find_last_not_of(" \t\n\r") + 1);
 }
 
 void ParseConfig::parseDirective(std::vector<std::string> &conf_vec, size_t &i, ServerConfig &config)
 {
-	std::string	first_word = conf_vec[i].substr(0, conf_vec[i].find_first_of(" \t"));
+	const std::string	first_word = conf_vec[i].substr(0, conf_vec[i].find_first_of(" \t"));
 
 	if (first_word == "location") {
 		handleLocation(conf_vec, i, config);
 		return;
 	}
 
-	if (conf_vec[i].empty() || conf_vec[i][conf_vec[i].size() - 1] != ';')
-		throw InvalidFormat("Config File: Missing ';' at end of line.");
-	conf_vec[i].erase(conf_vec[i].size() - 1);
-
-	std::istringstream	iss(conf_vec[i]);
+	const size_t		semicolon_pos = findLineEnd(conf_vec[i]);
+	std::istringstream	iss(conf_vec[i].substr(0, semicolon_pos));
 	std::string			var;
 	iss >> var;
+	std::string			dir_args = trim(conf_vec[i].substr(var.size(), semicolon_pos - var.size()));
 
 	if (var == "listen")
 		handleListen(iss, config);
-	else if (var == "server_name" || var == "root" || var == "host")
-		handleSimpleDirective(var, iss, config);
+	else if (var == "root")
+		handleRoot(var, dir_args, config);
+	else if (var == "host")
+		handleHost(iss, config);
 	else if (var == "index")
-		handleIndex(iss, config);
+		handleIndex(var, dir_args, config);
 	else if (var == "error_page")
-		handleErrorPage(iss, config);
+		handleErrorPage(var, dir_args, config);
 	else if (var == "client_max_body_size")
 		handleClientSize(iss, config);
-	else
-		throw InvalidFormat("Config File: Unknown directive in server block.");
+	else if (!var.empty())
+		throw InvalidFormat("Unknown directive in server block.");
 }
 
 void	ParseConfig::handleClientSize(std::istringstream &iss, ServerConfig &config)
 {
 	if (config.getClientMaxBodySize() != 0)
-		throw InvalidFormat("Config File: Duplicate client_max_body_size directive.");
+		throw InvalidFormat("Duplicate client_max_body_size directive.");
 
 	std::string value_str;
 	if (!(iss >> value_str))
-		throw InvalidFormat("Config File: Missing value for client_max_body_size.");
+		throw InvalidFormat("Missing value for client_max_body_size.");
 
 	char	*endptr;
 	long long value = std::strtoll(value_str.c_str(), &endptr, 10);
 
 	if (endptr == value_str.c_str() || value < 0)
-		throw InvalidFormat("Config File: Invalid value for client_max_body_size.");
+		throw InvalidFormat("Invalid value for client_max_body_size.");
 
 	size_t	multiplier = 1;
 	if (*endptr != '\0') {
@@ -147,10 +146,12 @@ void	ParseConfig::handleClientSize(std::istringstream &iss, ServerConfig &config
 		else if ((*endptr == 'm' || *endptr == 'M') && *(endptr + 1) == '\0')
 			multiplier *= 1024 * 1024;
 		else
-			throw InvalidFormat("Config File: Invalid value for client_max_body_size.");
+			throw InvalidFormat("Invalid value for client_max_body_size.");
 	}
 
 	config.setClientMaxBodySize(static_cast<size_t>(value) * multiplier);
+	if (iss >> value_str)
+		throw InvalidFormat("client_max_body_size directive requires only one argument.");
 }
 
 void	ParseConfig::handleLocation(std::vector<std::string> &conf_vec, size_t &i, ServerConfig &config)
@@ -159,60 +160,75 @@ void	ParseConfig::handleLocation(std::vector<std::string> &conf_vec, size_t &i, 
 	config.addLocationBack(loc);
 }
 
+void	ParseConfig::handleHost(std::istringstream &iss, ServerConfig &config)
+{
+	if (config.getHost())
+		throw InvalidFormat("Duplicate host directive.");
+	std::string value;
+	if (!(iss >> value))
+		throw InvalidFormat("Missing value for host.");
+
+	if (value == "localhost")
+		value = "127.0.0.1";
+
+	struct addrinfo hints;
+	std::memset(&hints, 0, sizeof(hints));
+	hints.ai_family = AF_INET;
+	hints.ai_socktype = SOCK_STREAM;
+
+	struct addrinfo *res = NULL;
+	int	ret = getaddrinfo(value.c_str(), NULL, &hints, &res);
+	if (ret == 0 && res != NULL) {
+		struct sockaddr_in *addr = (struct sockaddr_in *)res->ai_addr;
+		config.setHost(addr->sin_addr.s_addr);
+	}
+	else
+		throw InvalidFormat("Invalid host address.");
+	freeaddrinfo(res);
+	if (iss >> value)
+		throw InvalidFormat("Host directive requires only one argument.");
+}
+
 void	ParseConfig::handleListen(std::istringstream &iss, ServerConfig &config)
 {
 	if (config.getPort() != 0)
-		throw InvalidFormat("Config File: Duplicate listen directive.");
+		throw InvalidFormat("Duplicate listen directive.");
 
 	int value;
 	if (!(iss >> value) || value < 0 || value > 65535)
-		throw InvalidFormat("Config File: Invalid port number.");
+		throw InvalidFormat("Invalid port number.");
 	config.setPort(static_cast<unsigned short>(value));
+	if (iss >> value)
+		throw InvalidFormat("Listen directive requires only one argument.");
 }
 
-void	ParseConfig::handleSimpleDirective(const std::string &var, std::istringstream &iss, ServerConfig &config)
+void	ParseConfig::handleRoot(const std::string var, const std::string line, ServerConfig &config)
 {
-	if ((var == "server_name" && !config.getServerName().empty()) ||
-		(var == "root" && !config.getRoot().empty()) ||
-		(var == "host" && !config.getHost().empty()))
-		throw InvalidFormat("Config File: Duplicate " + var + " directive.");
-
-	std::string value;
-	if (!(iss >> value))
-		throw InvalidFormat("Config File: Missing value for " + var + ".");
-	if (var == "server_name") config.setServerName(value);
-	else if (var == "root") config.setRoot(value);
-	else config.setHost(value);
+	if (!config.getRoot().empty())
+		throw InvalidFormat("Duplicate root directive.");
+	std::string	path = extractSinglePath(var, line);
+	config.setRoot(path);
 }
 
-void	ParseConfig::handleIndex(std::istringstream &iss, ServerConfig &config)
+void	ParseConfig::handleIndex(const std::string var, const std::string line, ServerConfig &config)
 {
 	if (!config.getIndex().empty())
-		throw InvalidFormat("Config File: Duplicate index directive.");
+		throw InvalidFormat("Duplicate index directive.");
 
-	std::string value;
-	while (iss >> value)
-		config.addIndexBack(value);
+	config.setIndex(extractQuotedArgs(var, line));
 }
 
-void	ParseConfig::handleErrorPage(std::istringstream &iss, ServerConfig &config)
+void ParseConfig::handleErrorPage(std::string var, std::string line, ServerConfig &config)
 {
-	std::vector <std::string> args;
-	std::string arg;
-	while (iss >> arg)
-		args.push_back(arg);
+	std::vector<std::string>	args = extractQuotedArgs(var, line);
 
-	if (args.size() < 2)
-		throw InvalidFormat("Config File: Invalid error_page directive.");
-
-	std::string url = args.back();
+	std::string	status_file = args.back();
 	args.pop_back();
-	for (size_t i = 0; i < args.size(); ++i) {
-		char *endptr;
-		long value = std::strtol(args[i].c_str(), &endptr, 10);
-		if (*endptr != '\0' || value < 0 || value > 65535)
-			throw InvalidFormat("Config File: Invalid error code in error_page directive.");
-		config.addErrorPageBack(static_cast<unsigned short>(value), url);
+
+	for (size_t i = 0; i < args.size(); i++) {
+		if (!isCode(args[i]) || !checkValidCode(std::atoi(args[i].c_str())))
+			throw InvalidFormat("Invalid status code in error_page directive.");
+		config.addErrorPageBack(std::atoi(args[i].c_str()), status_file);
 	}
 }
 
@@ -224,12 +240,6 @@ const char	*ParseConfig::CouldNotOpenFile::what() const throw() {
 	return "Could not open configuration file.";
 }
 
-ParseConfig::InvalidFormat::InvalidFormat(std::string message) : message(message)
-{}
-
-ParseConfig::InvalidFormat::~InvalidFormat() throw()
-{}
-
-const char	*ParseConfig::InvalidFormat::what() const throw() {
-	return this->message.c_str();
+const char	*ParseConfig::IsDirectoryError::what() const throw() {
+	return "Input file is a directory.";
 }

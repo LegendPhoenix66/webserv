@@ -3,6 +3,9 @@
 
 #include "WebServ.hpp"
 #include "ServerConfig.hpp"
+#include "HttpStatusCodes.hpp"
+#include "ParseUtils.hpp"
+#include "InvalidFormat.hpp"
 
 /**
  * @class ParseConfig
@@ -39,12 +42,6 @@ private:
 	void parseConfigBlock(std::vector<std::string> &conf_vec, size_t &i);
 
 	/**
-	 * @brief Trims whitespace from both ends of a line.
-	 * @param line The line to trim.
-	 */
-	static void trim(std::string &line);
-
-	/**
 	 * @brief Parses a single configuration directive line.
 	 * @param conf_vec The input file stream.
 	 * @param i The directive line to parse.
@@ -70,23 +67,23 @@ private:
 	/**
 	 * @brief Handles simple directives (server_name, root, host).
 	 * @param var The directive name.
-	 * @param iss The input string stream containing the value.
+	 * @param var The input string stream containing the value.
 	 * @throws InvalidFormat if the directive is invalid.
 	 */
-	void handleSimpleDirective(const std::string &var, std::istringstream &iss, ServerConfig &config);
+	void handleRoot(const std::string var, const std::string line, ServerConfig &config);
 
 	/**
 	 * @brief Handles the 'index' directive.
 	 * @param iss The input string stream containing index file names.
 	 */
-	void handleIndex(std::istringstream &iss, ServerConfig &config);
+	void handleIndex(const std::string var, const std::string line, ServerConfig &config);
 
 	/**
 	 * @brief Handles the 'error_page' directive.
 	 * @param iss The input string stream containing error codes and URL.
 	 * @throws InvalidFormat if the directive is invalid.
 	 */
-	void handleErrorPage(std::istringstream &iss , ServerConfig &config);
+	void handleErrorPage(std::string var, std::string line, ServerConfig &config);
 
 	/**
 	 * @brief Handles the 'client_max_body_size' directive.
@@ -95,7 +92,9 @@ private:
 	 */
 	void handleClientSize(std::istringstream &iss, ServerConfig &config);
 
-	void	checkValues();
+	void handleHost(std::istringstream &iss, ServerConfig &config);
+
+	void	checkBrackets(const std::vector<std::string> conf_vec);
 
 public:
 	/**
@@ -148,20 +147,8 @@ public:
 		const char *what() const throw();
 	};
 
-	/**
-	 * @class InvalidFormat
-	 * @brief Exception thrown when the configuration format is invalid.
-	 */
-	class InvalidFormat : public std::exception {
-	private:
-		std::string	message;
+	class IsDirectoryError :public std::exception {
 	public:
-		/**
-		 * @brief Returns an error message describing the invalid format.
-		 * @return The error message string.
-		 */
-		explicit InvalidFormat(std::string message = "Invalid format.");
-		~InvalidFormat() throw();
 		const char *what() const throw();
 	};
 };

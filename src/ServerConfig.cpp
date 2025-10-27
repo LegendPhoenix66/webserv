@@ -3,13 +3,12 @@
 #include "../inc/ServerConfig.hpp"
 
 ServerConfig::ServerConfig() :
-		port(0),
+		port(0), host(0),
 		client_max_body_size(0) {
 }
 
 ServerConfig::ServerConfig(const ServerConfig &copy)
 		: port(copy.port),
-		  server_name(copy.server_name),
 		  host(copy.host),
 		  root(copy.root),
 		  index(copy.index),
@@ -28,7 +27,6 @@ ServerConfig::~ServerConfig() {
 
 void ServerConfig::swap(ServerConfig &other) {
 	std::swap(this->port, other.port);
-	std::swap(this->server_name, other.server_name);
 	std::swap(this->host, other.host);
 	std::swap(this->root, other.root);
 	std::swap(this->index, other.index);
@@ -42,11 +40,7 @@ void ServerConfig::setPort(uint16_t port) {
 	this->port = port;
 }
 
-void ServerConfig::setServerName(std::string name) {
-	this->server_name = name;
-}
-
-void ServerConfig::setHost(std::string host) {
+void ServerConfig::setHost(uint32_t host) {
 	this->host = host;
 }
 
@@ -62,6 +56,10 @@ void ServerConfig::addIndexBack(const std::string &index) {
 	this->index.push_back(index);
 }
 
+void	ServerConfig::setIndex(const std::vector <std::string> &index) {
+	this->index = index;
+}
+
 void ServerConfig::addLocationBack(const Location &loc) {
 	this->locations.push_back(loc);
 }
@@ -74,11 +72,7 @@ uint16_t ServerConfig::getPort() const {
 	return port;
 }
 
-std::string ServerConfig::getServerName() const {
-	return server_name;
-}
-
-std::string ServerConfig::getHost() const {
+uint32_t ServerConfig::getHost() const {
 	return host;
 }
 
@@ -100,4 +94,12 @@ std::map<int, std::string> ServerConfig::getErrorPages() const {
 
 size_t ServerConfig::getClientMaxBodySize() const {
 	return this->client_max_body_size;
+}
+
+Location	ServerConfig::findLocationForPath(std::string path) const {
+	for (size_t i = 0; i < this->locations.size(); i++) {
+		if (this->locations[i].getPath() == path)
+			return this->locations[i];
+	}
+	return Location();
 }

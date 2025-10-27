@@ -69,3 +69,24 @@ std::string	getStatusMessage(HttpStatusCode::e statusCode) {
 int	statusCodeToInt(HttpStatusCode::e code) {
 	return static_cast<int>(code);
 }
+
+HttpStatusCode::e	getStatusCode(int input) {
+	return static_cast<HttpStatusCode::e>(input);
+}
+
+bool	isCode(const std::string &str) {
+	if (str.size() != 3)
+		return false;
+
+	for (size_t i = 0; i < 3; i++) {
+		if (!std::isdigit(str[i]))
+			return false;
+	}
+	return true;
+}
+
+bool	checkValidCode(const int code) {
+	if (getStatusMessage(getStatusCode(code)).empty())
+		return false;
+	return true;
+}
