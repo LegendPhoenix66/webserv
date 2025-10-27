@@ -126,7 +126,7 @@ public:
 	 * @throws CouldNotOpenFile if the file cannot be opened.
 	 * @throws InvalidFormat if the configuration is invalid.
 	 */
-	explicit ParseConfig(char *file);
+	explicit ParseConfig(std::string file);
 
 	/**
 	 * @brief Gets the parsed server configuration.

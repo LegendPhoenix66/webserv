@@ -19,11 +19,11 @@ void ParseConfig::swap(ParseConfig &other) {
 	std::swap(this->configs, other.configs);
 }
 
-ParseConfig::ParseConfig(char *file) {
+ParseConfig::ParseConfig(std::string file) {
 	if (isDirectory(file))
 		throw IsDirectoryError();
 	std::ifstream	fileStream;
-	fileStream.open(file);
+	fileStream.open(file.c_str());
 	if (!fileStream.is_open())
 		throw CouldNotOpenFile();
 	std::vector<std::string>	conf_vec;

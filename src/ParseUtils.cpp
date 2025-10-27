@@ -72,10 +72,10 @@ size_t	findLineEnd(const std::string line) {
 	return semicolon_pos;
 }
 
-bool	isDirectory(const char *path) {
+bool	isDirectory(const std::string path) {
 	DIR		*dir;
 
-	dir = opendir(path);
+	dir = opendir(path.c_str());
 	if (dir != NULL) {
 		closedir(dir);
 		return true;
