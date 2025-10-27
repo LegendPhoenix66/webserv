@@ -1,6 +1,6 @@
 #include "../inc/Location.hpp"
 
-Location::Location() : client_max_body_size(0) {}
+Location::Location() : client_max_body_size(0), autoindex(false) {}
 
 Location::Location(const Location &other)
 		: path(other.path),
@@ -11,6 +11,7 @@ Location::Location(const Location &other)
 		  allowed_methods(other.allowed_methods),
 		  return_dir(other.return_dir),
 		  upload_path(other.upload_path),
+		  autoindex(other.autoindex),
 		  client_max_body_size(other.client_max_body_size) {}
 
 Location	&Location::operator=(Location copy) {
@@ -136,6 +137,15 @@ void	Location::parseDirective(const std::string &line) {
 				this->limit_except.push_back(value);
 			break;
 		}
+		case DIR_AUTOINDEX:
+			std::string	value;
+			iss >> value;
+			if (value != "on" || value != "off")
+				throw InvalidFormat("Invalid value for autoindex directive.");
+			this->autoindex = (value == "on");
+			if (iss >> value)
+				throw InvalidFormat("autoindex directive requires only one argument.");
+			break;
 		case DIR_EMPTY:
 			break;
 		default:
@@ -247,6 +257,7 @@ void Location::swap(Location &other) {
 	std::swap(this->allowed_methods, other.allowed_methods);
 	std::swap(this->return_dir, other.return_dir);
 	std::swap(this->upload_path, other.upload_path);
+	std::swap(this->autoindex, other.autoindex);
 	std::swap(this->client_max_body_size, other.client_max_body_size);
 }
 

@@ -42,6 +42,7 @@ private:
 	ReturnDir	return_dir;
 	/** @brief Directory for file uploads in this location. */
 	std::string upload_path;
+	bool		autoindex;
 	/** @brief Maximum allowed size for client request bodies (in bytes). */
 	size_t	client_max_body_size;
 	std::vector<std::string>	limit_except;
@@ -68,6 +69,7 @@ private:
 		DIR_UPLOAD_PATH,   /**< The 'upload_path' directive. */
 		DIR_CLIENT_MAX_BODY_SIZE, /**< The 'client_max_body_size' directive. */
 		DIR_LIMIT_EXCEPT,   /**< The 'limit_except' directive. */
+		DIR_AUTOINDEX,
 		DIR_EMPTY,
 		DIR_UNKNOWN         /**< Unknown or unsupported directive. */
 	};
@@ -199,6 +201,7 @@ public:
 	 * @return The size in bytes.
 	 */
 	size_t getClientMaxBodySize() const;
+	bool	getAutoindex() const;
 };
 
 
