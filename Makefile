@@ -1,15 +1,31 @@
 NAME = webserv
 SRC_DIR = src
 OBJ_DIR = obj
-CFILES = main.cpp \
-		ParseConfig.cpp \
-		ServerConfig.cpp \
-		Location.cpp \
-		Server.cpp \
-		HttpStatusCodes.cpp
+
+# Explicit source list (42 subject prefers listing files)
+CFILES = \
+	main.cpp \
+	core/Server.cpp \
+	core/EventLoop.cpp \
+	core/Listener.cpp \
+	core/Connection.cpp \
+	net/Socket.cpp \
+	net/Address.cpp \
+	http/HttpRequest.cpp \
+	http/HttpResponse.cpp \
+	http/HttpParser.cpp \
+	http/MimeTypes.cpp \
+	routing/Router.cpp \
+	routing/StaticFileHandler.cpp \
+	config/Config.cpp \
+	config/ConfigParser.cpp \
+	util/Logger.cpp \
+	util/SignalHandler.cpp
+
 OFILES = $(addprefix $(OBJ_DIR)/,$(CFILES:.cpp=.o))
 CC = c++
-CFLAGS = -Wall -Werror -Wextra -std=c++98 -g -fsanitize=address
+CFLAGS = -Wall -Werror -Wextra -std=c++98 -g -MMD -MP #-fsanitize=address
+INCLUDES = -Iinc
 
 RED = \033[1;31m
 GREEN = \033[1;32m
@@ -21,9 +37,11 @@ COMPILED_FILES = 0
 
 $(OBJ_DIR)/%.o: $(SRC_DIR)/%.cpp
 	@mkdir -p $(dir $@)
-	@$(CC) $(CFLAGS) -c $< -o $@
+	@$(CC) $(CFLAGS) $(INCLUDES) -c $< -o $@
 	@$(eval COMPILED_FILES=$(shell echo $$(($(COMPILED_FILES)+1))))
-	@echo "${YELLOW}[$$(($(COMPILED_FILES)*100/$(TOTAL_FILES)))%]${RESET}		${GREEN}Compiled${RESET} $(notdir $<) ${GREEN}with flags${RESET} $(CFLAGS)"
+	@echo "${YELLOW}[$$(($(COMPILED_FILES)*100/$(TOTAL_FILES)))%]${RESET}		${GREEN}Compiled${RESET} $(notdir $<) ${GREEN}with flags${RESET} $(CFLAGS) $(INCLUDES)"
+
+-include $(OFILES:.o=.d)
 
 $(NAME): $(OFILES)
 	@$(CC) $(CFLAGS) $(OFILES) -o $(NAME)
@@ -41,4 +59,19 @@ fclean: clean
 
 re: fclean $(NAME)
 
-.PHONY: all clean fclean re
+asan:
+	@$(MAKE) CFLAGS='-Wall -Werror -Wextra -std=c++98 -g -fsanitize=address -fno-omit-frame-pointer' all
+
+.PHONY: all clean fclean re asan
+
+
+# Test targets
+# Run the mandatory test suite (requires WSL bash, curl, python3)
+test:
+	@bash tests/mandatory_test.sh
+
+# AddressSanitizer build then run tests
+# Note: server will still be named 'webserv' but built with ASan flags.
+test-asan:
+	@$(MAKE) asan
+	@bash tests/mandatory_test.sh

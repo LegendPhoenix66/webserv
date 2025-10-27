@@ -1,101 +1,119 @@
-#include "../inc/WebServ.hpp"
-#include "../inc/ParseConfig.hpp"
-#include "../inc/Server.hpp"
+#include <iostream>
+#include <fstream>
+#include <string>
+#include <map>
+#include <vector>
+#include <sstream>
+#include "../inc/ConfigParser.hpp"
+#include "../inc/Config.hpp"
+#include "../inc/Listener.hpp"
+#include "../inc/EventLoop.hpp"
+#include "../inc/Logger.hpp"
+#include "../inc/SignalHandler.hpp"
 
-/*void print_conf(const ServerConfig &conf, size_t n) {
-	std::cout << "Server Configuration " << n << ":" << std::endl;
-	std::cout << "Port: " << conf.getPort() << std::endl;
-	std::cout << "Server Name: " << conf.getServerName() << std::endl;
-	std::cout << "Host: " << conf.getHost() << std::endl;
-	std::cout << "Root: " << conf.getRoot() << std::endl;
-	std::cout << "Index: ";
-	for (size_t i = 0; i < conf.getIndex().size(); i++)
-		std::cout << conf.getIndex()[i] << " ";
-	std::cout << std::endl;
-	std::cout << "Client Max Body Size: " << conf.getClientMaxBodySize() << " bytes" << std::endl;
-	const std::vector<Location> locations = conf.getLocations();
-	std::cout << "Locations: " << std::endl;
-	for (size_t i = 0; i < locations.size(); i++) {
-		const Location &loc = locations[i];
-		std::cout << "  Path: " << loc.getPath() << std::endl;
-		if (!loc.getRoot().empty())
-			std::cout << "  Root: " << loc.getRoot() << std::endl;
-		if (!loc.getCgiPass().empty())
-			std::cout << "  CGI Pass: " << loc.getCgiPass() << std::endl;
-		if (!loc.getCgiPath().empty())
-			std::cout << "  CGI Path: " << loc.getCgiPath() << std::endl;
-		std::cout << "  Autoindex: " << (loc.getAutoindex() ? "on" : "off") << std::endl;
-		if (!loc.getIndex().empty()) {
-			std::cout << "  Index: ";
-			for (size_t j = 0; j < loc.getIndex().size(); j++)
-				std::cout << loc.getIndex()[j] << " ";
-			std::cout << std::endl;
-		}
-		if (!loc.getAllowedMethods().empty()) {
-			std::cout << "  Allowed Methods: ";
-			for (size_t j = 0; j < loc.getAllowedMethods().size(); j++)
-				std::cout << loc.getAllowedMethods()[j] << " ";
-			std::cout << std::endl;
-		}
-		if (loc.getReturnDir().first != 0 || !loc.getReturnDir().second.empty())
-			std::cout << "  Return Directory: ";
-		if (loc.getReturnDir().first != 0)
-			std::cout << loc.getReturnDir().first << " ";
-		if (!loc.getReturnDir().second.empty())
-			std::cout << loc.getReturnDir().second;
-		if (loc.getReturnDir().first != 0 || !loc.getReturnDir().second.empty())
-			std::cout << std::endl;
-		if (!loc.getUploadStore().empty())
-			std::cout << "  Upload Store: " << loc.getUploadStore() << std::endl;
-		if (loc.getClientMaxBodySize() != 0)
-			std::cout << "  Client Max Body Size: " << loc.getClientMaxBodySize() << " bytes" << std::endl;
-		std::cout << "----------------------------------------" << std::endl;
-	}
-	const std::map<int, std::string> error_pages = conf.getErrorPages();
-	std::cout << "Error Pages: " << std::endl;
-	for (std::map<int, std::string>::const_iterator it = error_pages.begin(); it != error_pages.end(); ++it) {
-		if (!it->second.empty())
-			std::cout << "  " << it->first << ": " << it->second << std::endl;
-	}
-	std::cout << "----------------------------------------" << std::endl;
-}*/
-
-int check_args(int argc) {
-	if (argc < 2) {
-		std::cerr << "Error: No config file specified.\nUsage: ./webserv <config_file>" << std::endl;
-		return 1;
-	}
-	return 0;
-}
-
-std::vector<ServerConfig>	init_config(char *path) {
-	return ParseConfig(path).getConfigs();
-}
-
-void start_server(const std::vector<ServerConfig> &configs) {
-	std::vector <Server> servers;
-	servers.reserve(configs.size());
-	for (size_t i = 0; i < configs.size(); ++i) {
-		servers.push_back(Server(configs[i]));
-	}
-	for (size_t i = 0; i < servers.size(); ++i) {
-		servers[i].start();
-	}
-	// TODO: Integrate with poll/select/epoll for event loop
+static void print_usage() {
+    std::cout << "Usage: webserv [options] [config_file]\n"
+                 "Options:\n"
+                 "  --help       Show this help and exit\n"
+                 "  --version    Show version and exit\n";
 }
 
 int main(int argc, char **argv) {
-	if (check_args(argc)) return 1;
+    const std::string defaultConfig = "conf_files/v0_min.conf";
+    std::string configPath;
 
-	try {
-		std::vector<ServerConfig> configs = init_config(argv[1]);
-		/*for (size_t i = 0; i < configs.size(); i++)
-			print_conf(configs[i], i + 1);*/
-		start_server(configs);
-	}
-	catch (std::exception &e) {
-		std::cerr << "Error: " << e.what() << std::endl;
-	}
+    if (argc == 1) {
+        configPath = defaultConfig;
+    } else if (argc == 2) {
+        std::string arg = argv[1];
+        if (arg == std::string("--help")) {
+            print_usage();
+            return 0;
+        } else if (arg == std::string("--version")) {
+            std::cout << "webserv " << WEBSERV_VERSION << "\n";
+            return 0;
+        } else {
+            configPath = arg;
+        }
+    } else {
+        std::cerr << "error: too many arguments\n";
+        print_usage();
+        return 2; // CLI error
+    }
 
-	return (0);
+    try {
+        // Initialise logging early
+        Logger::init("logs/access.log", "logs/error.log");
+        Logger::setLevel(LOG_INFO);
+        (void)SignalHandler::install();
+        std::cout << "webserv " << WEBSERV_VERSION << " — running (multi-listen event loop)\n";
+        std::cout << "Loading config: " << configPath << "\n";
+        ConfigParser parser;
+        Config cfg = parser.parseFile(configPath);
+        if (cfg.servers.empty()) {
+            std::cerr << "error: no servers parsed\n";
+            return 3;
+        }
+
+        // Build bind groups: key -> indices of servers (order preserved; first is default)
+        std::map<std::string, std::vector<size_t> > binds;
+        for (size_t i = 0; i < cfg.servers.size(); ++i) {
+            const ServerConfig &sc = cfg.servers[i];
+            std::string key = bindKeyOf(sc);
+            binds[key].push_back(i);
+        }
+
+        // Start listeners
+        std::vector<Listener*> listeners;
+        listeners.reserve(binds.size());
+        EventLoop loop;
+        std::string emsg;
+
+        for (std::map<std::string, std::vector<size_t> >::const_iterator it = binds.begin(); it != binds.end(); ++it) {
+            const std::string &key = it->first;
+            const std::vector<size_t> &idxs = it->second;
+            if (idxs.empty()) continue;
+
+            Listener *lst = new Listener();
+            const ServerConfig &sc0 = cfg.servers[idxs[0]]; // default for this bind
+            if (!lst->start(sc0, &emsg)) {
+                std::cerr << "startup error on " << key << ": " << emsg << "\n";
+                // cleanup
+                for (size_t k = 0; k < listeners.size(); ++k) { delete listeners[k]; }
+                return 2;
+            }
+            listeners.push_back(lst);
+
+            // Build group of pointers for this bind
+            std::vector<const ServerConfig*> group;
+            for (size_t j = 0; j < idxs.size(); ++j) {
+                group.push_back(&cfg.servers[idxs[j]]);
+            }
+
+            if (!loop.addListen(lst->fd(), key, group, &emsg)) {
+                std::cerr << "eventloop setup error for " << key << ": " << emsg << "\n";
+                for (size_t k = 0; k < listeners.size(); ++k) { delete listeners[k]; }
+                return 2;
+            }
+            std::cout << "listening at " << lst->boundAddress() << " (group size=" << group.size() << ")\n";
+        }
+
+        int rc = loop.run();
+        for (size_t k = 0; k < listeners.size(); ++k) { delete listeners[k]; }
+        SignalHandler::uninstall();
+        Logger::shutdown();
+        return rc; // 0 on clean stop, 2 on fatal
+    } catch (const ConfigError &e) {
+        if (e.kind() == IO_ERROR) {
+            std::cerr << e.file() << ": error: " << e.what() << "\n";
+            return 2; // CLI / IO error
+        }
+        std::cerr << e.file() << ":" << e.line() << ":" << e.col() << ": error: " << e.what() << "\n";
+        if (e.kind() == SYNTAX_ERROR) return 3;
+        if (e.kind() == VALIDATION_ERROR) return 4;
+        return 2;
+    } catch (const std::exception &e) {
+        std::cerr << "fatal: " << e.what() << "\n";
+        return 2;
+    }
 }
