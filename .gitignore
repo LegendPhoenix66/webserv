@@ -2,6 +2,7 @@ cmake-build-debug/
 CMakeLists.txt
 .idea/
 .vscode/
+.github/
 obj/
 a.out
 webserv

@@ -1,6 +1,6 @@
 #include "../inc/Location.hpp"
 
-Location::Location() : client_max_body_size(0), autoindex(false) {}
+Location::Location() : autoindex(false), client_max_body_size(0) {}
 
 Location::Location(const Location &other)
 		: path(other.path),
@@ -137,8 +137,8 @@ void	Location::parseDirective(const std::string &line) {
 				this->limit_except.push_back(value);
 			break;
 		}
-		case DIR_AUTOINDEX:
-			std::string	value;
+		case DIR_AUTOINDEX: {
+			std::string value;
 			iss >> value;
 			if (value != "on" || value != "off")
 				throw InvalidFormat("Invalid value for autoindex directive.");
@@ -146,6 +146,7 @@ void	Location::parseDirective(const std::string &line) {
 			if (iss >> value)
 				throw InvalidFormat("autoindex directive requires only one argument.");
 			break;
+		}
 		case DIR_EMPTY:
 			break;
 		default:
