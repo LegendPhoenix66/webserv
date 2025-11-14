@@ -1,6 +1,6 @@
 This folder is included for local testing of uploads.
 
-Note: the server configuration in `conf_files/test.conf` uses an absolute path `upload_path /uploads`.
+Note: the server configuration in `conf_files/test.conf` uses an absolute path `upload_store /uploads`.
 If your server maps uploads to an absolute path, either adjust the config to point to `./site2/uploads` for local testing
 or create a matching `/uploads` path on the system where the server runs.
 <!doctype html>
@@ -37,7 +37,7 @@ or create a matching `/uploads` path on the system where the server runs.
                 <input id="file" name="file" type="file">
                 <button type="submit">Upload</button>
             </form>
-            <p>(The server's config sets <code>upload_path /uploads</code> — for local testing a <code>site2/uploads</code> folder is included.)</p>
+            <p>(The server's config sets <code>upload_store /uploads</code> — for local testing a <code>site2/uploads</code> folder is included.)</p>
         </section>
 
         <section>

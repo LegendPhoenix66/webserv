@@ -4,7 +4,9 @@
 
 ServerConfig::ServerConfig() :
 		port(0), host(0),
-		client_max_body_size(0) {
+		client_max_body_size(-1),
+		max_headers_size(-1),
+		max_request_size(-1) {
 }
 
 ServerConfig::ServerConfig(const ServerConfig &copy)
@@ -14,7 +16,9 @@ ServerConfig::ServerConfig(const ServerConfig &copy)
 		  index(copy.index),
 		  locations(copy.locations),
 		  error_pages(copy.error_pages),
-		  client_max_body_size(copy.client_max_body_size) {
+		  client_max_body_size(copy.client_max_body_size),
+		  max_headers_size(copy.max_request_size),
+		  max_request_size(copy.max_request_size) {
 }
 
 ServerConfig &ServerConfig::operator=(ServerConfig copy) {
@@ -48,8 +52,16 @@ void ServerConfig::setRoot(std::string root) {
 	this->root = root;
 }
 
-void ServerConfig::setClientMaxBodySize(size_t size) {
+void ServerConfig::setClientMaxBodySize(long long size) {
 	this->client_max_body_size = size;
+}
+
+void	ServerConfig::setMaxHeaderSize(long long size) {
+	this->max_headers_size = size;
+}
+
+void	ServerConfig::setMaxRequestSize(long long size) {
+	this->max_request_size = size;
 }
 
 void ServerConfig::addIndexBack(const std::string &index) {
@@ -66,6 +78,10 @@ void ServerConfig::addLocationBack(const Location &loc) {
 
 void ServerConfig::addErrorPageBack(int code, std::string url) {
 	this->error_pages[code] = url;
+}
+
+void	ServerConfig::setServerName(const std::vector<std::string> names) {
+	server_name = names;
 }
 
 uint16_t ServerConfig::getPort() const {
@@ -88,12 +104,28 @@ std::vector<Location> ServerConfig::getLocations() const {
 	return locations;
 }
 
+const std::vector<Location>	&ServerConfig::getLocationsRef() const {
+	return locations;
+}
+
 std::map<int, std::string> ServerConfig::getErrorPages() const {
 	return error_pages;
 }
 
-size_t ServerConfig::getClientMaxBodySize() const {
+std::vector<std::string>	ServerConfig::getServerName() const {
+	return server_name;
+}
+
+long long	ServerConfig::getClientMaxBodySize() const {
 	return this->client_max_body_size;
+}
+
+long long	ServerConfig::getMaxHeaderSize() const {
+	return this->max_headers_size;
+}
+
+long long	ServerConfig::getMaxRequestSize() const {
+	return this->max_request_size;
 }
 
 Location	ServerConfig::findLocationForPath(std::string path) const {
@@ -102,4 +134,10 @@ Location	ServerConfig::findLocationForPath(std::string path) const {
 			return this->locations[i];
 	}
 	return Location();
+}
+
+std::string	ServerConfig::bindKey() {
+	std::ostringstream	oss;
+	oss << host << ":" << port;
+	return oss.str();
 }

@@ -6,3 +6,4 @@ CMakeLists.txt
 obj/
 a.out
 webserv
+logs/

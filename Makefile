@@ -8,10 +8,22 @@ CFILES = main.cpp \
 		Server.cpp \
 		HttpStatusCodes.cpp \
 		ParseUtils.cpp \
-		InvalidFormat.cpp
+		InvalidFormat.cpp \
+		Logger.cpp \
+		SignalHandler.cpp \
+		Address.cpp \
+		Socket.cpp \
+		EventLoop.cpp \
+		Connection.cpp \
+		HttpParser.cpp \
+		HttpResponse.cpp \
+		Listener.cpp \
+		Router.cpp \
+		LoopUtils.cpp \
+		ConnectionUtils.cpp
 OFILES = $(addprefix $(OBJ_DIR)/,$(CFILES:.cpp=.o))
 CC = c++
-CFLAGS = -Wall -Werror -Wextra -std=c++98 -g -fsanitize=address
+CFLAGS = -Wall -Werror -Wextra -std=c++98 -g #-fsanitize=address
 
 RED = \033[1;31m
 GREEN = \033[1;32m

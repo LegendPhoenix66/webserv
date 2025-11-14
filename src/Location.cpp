@@ -1,16 +1,16 @@
 #include "../inc/Location.hpp"
 
-Location::Location() : autoindex(false), client_max_body_size(0) {}
+Location::Location() : autoindex(false), client_max_body_size(-1) {}
 
 Location::Location(const Location &other)
 		: path(other.path),
 		  root(other.root),
-		  cgi_ext(other.cgi_ext),
+		  cgi_pass(other.cgi_pass),
 		  cgi_path(other.cgi_path),
 		  index(other.index),
 		  allowed_methods(other.allowed_methods),
 		  return_dir(other.return_dir),
-		  upload_path(other.upload_path),
+		  upload_store(other.upload_store),
 		  autoindex(other.autoindex),
 		  client_max_body_size(other.client_max_body_size) {}
 
@@ -21,7 +21,7 @@ Location	&Location::operator=(Location copy) {
 
 Location::~Location() {}
 
-Location::Location(std::vector<std::string> &conf_vec, size_t &i) : client_max_body_size(0) {
+Location::Location(std::vector<std::string> &conf_vec, size_t &i) : client_max_body_size(-1) {
 	parseDeclaration(conf_vec, i);
 
 	std::string trimmed_line;
@@ -73,14 +73,14 @@ void	Location::parseDeclaration(std::vector<std::string> &conf_vec, size_t &i) {
 
 Location::DirectiveType Location::getDirectiveType(const std::string &var) {
 	if (var == "root") return DIR_ROOT;
-	if (var == "cgi_ext") return DIR_CGI_EXT;
+	if (var == "cgi_pass") return DIR_CGI_PASS;
 	if (var == "cgi_path") return DIR_CGI_PATH;
 	if (var == "index") return DIR_INDEX;
 	if (var == "allowed_methods") return DIR_ALLOWED_METHODS;
 	if (var == "return") return DIR_RETURN;
-	if (var == "upload_path") return DIR_UPLOAD_PATH;
+	if (var == "upload_store") return DIR_UPLOAD_STORE;
 	if (var == "client_max_body_size") return DIR_CLIENT_MAX_BODY_SIZE;
-	if (var == "limit_except") return DIR_LIMIT_EXCEPT;
+	if (var == "autoindex") return DIR_AUTOINDEX;
 	if (var.empty()) return DIR_EMPTY;
 	return DIR_UNKNOWN;
 }
@@ -99,15 +99,16 @@ void	Location::parseDirective(const std::string &line) {
 			this->root = extractSinglePath(var, dir_args);
 			break;
 		}
-		case DIR_CGI_EXT: {
-			parseCGIExt(iss);
+		case DIR_CGI_PASS: {
+			if (!cgi_pass.empty())
+				throw InvalidFormat("Duplicate cgi_pass directive.");
+			cgi_pass = extractSinglePath(var, dir_args);
 			break;
 		}
 		case DIR_CGI_PATH: {
-			std::vector<std::string>	paths = extractQuotedArgs(var, dir_args);
-			if (paths.empty())
-				throw InvalidFormat("Missing arguments in cgi_path directive.");
-			this->cgi_path = paths;
+			if (!cgi_path.empty())
+				throw InvalidFormat("Duplicate cgi_path directive.");
+			cgi_path = extractSinglePath(var, dir_args);
 			break;
 		}
 		case DIR_INDEX:
@@ -120,27 +121,19 @@ void	Location::parseDirective(const std::string &line) {
 			parseReturn(iss, var, dir_args);
 			break;
 		}
-		case DIR_UPLOAD_PATH: {
-			if (!this->upload_path.empty())
-				throw InvalidFormat("Duplicate upload_path directive.");
-			this->upload_path = extractSinglePath(var, dir_args);
+		case DIR_UPLOAD_STORE: {
+			if (!this->upload_store.empty())
+				throw InvalidFormat("Duplicate upload_store directive.");
+			this->upload_store = extractSinglePath(var, dir_args);
 			break;
 		}
 		case DIR_CLIENT_MAX_BODY_SIZE:
 			parseClientSize(iss);
 			break;
-		case DIR_LIMIT_EXCEPT: {
-			if (!this->limit_except.empty())
-				throw InvalidFormat("Duplicate limit_except directive.");
-			std::string value;
-			while (iss >> value)
-				this->limit_except.push_back(value);
-			break;
-		}
 		case DIR_AUTOINDEX: {
 			std::string	value;
 			iss >> value;
-			if (value != "on" || value != "off")
+			if (value != "on" && value != "off")
 				throw InvalidFormat("Invalid value for autoindex directive.");
 			this->autoindex = (value == "on");
 			if (iss >> value)
@@ -152,20 +145,6 @@ void	Location::parseDirective(const std::string &line) {
 		default:
 			throw InvalidFormat("Unknown directive in location block.");
 	}
-}
-
-void	Location::parseCGIExt(std::istringstream &iss) {
-	std::vector<std::string>	extensions;
-	std::string					ext;
-
-	while (iss >> ext) {
-		if (ext.empty() || ext[0] != '.' || ext.find('.', 1) != std::string::npos)
-			throw InvalidFormat("Invalid extension in cgi_ext directive.");
-		extensions.push_back(ext);
-	}
-	if (extensions.empty())
-		throw InvalidFormat("Missing arguments in cgi_ext directive.");
-	this->cgi_ext = extensions;
 }
 
 bool	Location::isURL(const std::string &str) {
@@ -206,7 +185,7 @@ void Location::parseReturn(std::istringstream &iss, const std::string var, const
 }
 
 void	Location::parseClientSize(std::istringstream &iss) {
-	if (this->client_max_body_size != 0)
+	if (this->client_max_body_size >= 0)
 		throw InvalidFormat("Duplicate client_max_body_size directive.");
 
 	std::string value_str;
@@ -252,12 +231,12 @@ void Location::parseAllowedMethods(std::istringstream &iss) {
 void Location::swap(Location &other) {
 	std::swap(this->path, other.path);
 	std::swap(this->root, other.root);
-	std::swap(this->cgi_ext, other.cgi_ext);
+	std::swap(this->cgi_pass, other.cgi_pass);
 	std::swap(this->cgi_path, other.cgi_path);
 	std::swap(this->index, other.index);
 	std::swap(this->allowed_methods, other.allowed_methods);
 	std::swap(this->return_dir, other.return_dir);
-	std::swap(this->upload_path, other.upload_path);
+	std::swap(this->upload_store, other.upload_store);
 	std::swap(this->autoindex, other.autoindex);
 	std::swap(this->client_max_body_size, other.client_max_body_size);
 }
@@ -270,11 +249,11 @@ std::string Location::getRoot() const {
 	return this->root;
 }
 
-std::vector<std::string> Location::getCgiExt() const {
-	return this->cgi_ext;
+std::string Location::getCgiPass() const {
+	return this->cgi_pass;
 }
 
-std::vector<std::string> Location::getCgiPath() const {
+std::string Location::getCgiPath() const {
 	return this->cgi_path;
 }
 
@@ -286,12 +265,18 @@ std::vector<std::string> Location::getAllowedMethods() const {
 	return this->allowed_methods;
 }
 
-std::string	Location::findMethod(const std::string &method) const {
-	for (size_t i = 0; i < this->allowed_methods.size(); i++) {
+std::string	Location::getMethod(const std::string method) const {
+	std::string::size_type	pos = findMethod(method);
+	if (pos == std::string::npos) return std::string();
+	return allowed_methods[pos];
+}
+
+std::string::size_type	Location::findMethod(const std::string &method) const {
+	for (std::vector<std::string>::size_type i = 0; i < this->allowed_methods.size(); i++) {
 		if (this->allowed_methods[i] == method)
-			return this->allowed_methods[i];
+			return static_cast<std::string::size_type>(i);
 	}
-	return "";
+	return std::string::npos;
 }
 
 ReturnDir Location::getReturnDir() const {
@@ -299,15 +284,19 @@ ReturnDir Location::getReturnDir() const {
 }
 
 std::string Location::getUploadStore() const {
-	return this->upload_path;
+	return this->upload_store;
 }
 
-size_t	Location::getClientMaxBodySize() const {
+long long	Location::getClientMaxBodySize() const {
 	return this->client_max_body_size;
 }
 
-bool	Location::hasReturnDir() {
+bool	Location::hasReturnDir() const {
 	if (this->return_dir.code || !this->return_dir.url.empty() || !this->return_dir.text.empty())
 		return true;
 	return false;
+}
+
+bool	Location::getAutoindex() const {
+	return this->autoindex;
 }
