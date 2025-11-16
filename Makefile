@@ -5,7 +5,6 @@ CFILES = main.cpp \
 		ParseConfig.cpp \
 		ServerConfig.cpp \
 		Location.cpp \
-		Server.cpp \
 		HttpStatusCodes.cpp \
 		ParseUtils.cpp \
 		InvalidFormat.cpp \
@@ -23,7 +22,7 @@ CFILES = main.cpp \
 		ConnectionUtils.cpp
 OFILES = $(addprefix $(OBJ_DIR)/,$(CFILES:.cpp=.o))
 CC = c++
-CFLAGS = -Wall -Werror -Wextra -std=c++98 -g #-fsanitize=address
+CFLAGS = -Wall -Werror -Wextra -std=c++98 -g -fsanitize=address
 
 RED = \033[1;31m
 GREEN = \033[1;32m

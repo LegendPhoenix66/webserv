@@ -1,6 +1,5 @@
 #include "../inc/WebServ.hpp"
 #include "../inc/ParseConfig.hpp"
-#include "../inc/Server.hpp"
 #include "../inc/Logger.hpp"
 #include "../inc/SignalHandler.hpp"
 #include "../inc/Listener.hpp"
@@ -10,23 +9,6 @@ static void print_usage() {
 	std::cout << "Usage: webserv [options] [config_file]\n"
 				 "Options:\n"
 				 "  --help       Show this help and exit\n"
-				 "  --version    Show version and exit\n";
-}
-
-std::vector<ServerConfig>	init_config(char *path) {
-	return ParseConfig(path).getConfigs();
-}
-
-void start_server(const std::vector<ServerConfig> &configs) {
-	std::vector <Server> servers;
-	servers.reserve(configs.size());
-	for (size_t i = 0; i < configs.size(); ++i) {
-		servers.push_back(Server(configs[i]));
-	}
-	for (size_t i = 0; i < servers.size(); ++i) {
-		servers[i].start();
-	}
-	// TODO: Integrate with poll/select/epoll for event loop
 }
 
 int main(int argc, char **argv) {
