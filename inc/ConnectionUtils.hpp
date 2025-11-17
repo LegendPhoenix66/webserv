@@ -1,5 +1,6 @@
 #include <iostream>
 #include <string>
+#include <fstream>
 #include <map>
 #include <cstdio>
 #include <sys/socket.h>

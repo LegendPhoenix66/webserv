@@ -1,9 +1,11 @@
 #include "../inc/Logger.hpp"
 
 // Static state
-static FILE *s_err = 0;
-static FILE *s_access = 0;
-static LogLevel s_level = LOG_INFO;
+static std::ostream		*s_err;
+static std::ofstream	s_err_ofs;
+static std::ostream		*s_access = 0;
+static std::ofstream	s_access_ofs;
+static LogLevel			s_level = LOG_INFO;
 
 static void now_timestamp(char *buf, size_t buflen) {
 	// Format: YYYY-MM-DD HH:MM:SS.mmm (local time)
@@ -43,24 +45,24 @@ bool Logger::init(const char *accessLogPath, const char *errorLogPath) {
 	// Ensure logs directory exists (best-effort)
 	mkdir("logs", 0755);
 
-	s_err = stderr; // always available
+	s_err = &std::cerr; // always available
 	if (errorLogPath && *errorLogPath) {
-		FILE *f = fopen(errorLogPath, "a");
-		if (f) s_err = f; // route errors to file if open succeeds
+		s_err_ofs.open(errorLogPath, std::ios::app);
+		if (s_err_ofs) s_err = &s_err_ofs; // route errors to file if open succeeds
 	}
+	s_access = 0;
 	if (accessLogPath && *accessLogPath) {
-		s_access = fopen(accessLogPath, "a");
+		s_access_ofs.open(accessLogPath, std::ios::app);
+		if (s_access_ofs) s_access = &s_access_ofs;
 		// if open fails, fallback will be stderr
 	}
 	return true;
 }
 
 void Logger::shutdown() {
-	if (s_err && s_err != stderr) {
-		fclose(s_err);
-	}
-	if (s_access) fclose(s_access);
-	s_err = stderr;
+	if (s_err_ofs.is_open()) s_err_ofs.close();
+	if (s_access_ofs.is_open()) s_access_ofs.close();
+	s_err = &std::cerr;
 	s_access = 0;
 }
 
@@ -80,20 +82,53 @@ void Logger::accessf(const char *fmt, ...) {
 }
 
 void Logger::vlogf(LogLevel lvl, const char *fmt, va_list ap) {
-	if (!s_err) s_err = stderr;
-	char ts[32]; now_timestamp(ts, sizeof ts);
-	fprintf(s_err, "[%s] %-5s ", ts, level_str(lvl));
-	vfprintf(s_err, fmt, ap);
-	fputc('\n', s_err);
-	fflush(s_err);
+	if (!s_err) s_err = &std::cerr;
+
+	char ts[32];
+	now_timestamp(ts, sizeof ts);
+
+	int	bufsize = 1024;
+	std::vector<char>	buf(bufsize);
+	while (true) {
+		va_list	ap_copy;
+		std::memcpy(ap_copy, ap, sizeof(va_list));
+		int	n = vsnprintf(&buf[0], bufsize, fmt, ap_copy);
+		va_end(ap_copy);
+		if (n >= 0 && n < bufsize) break;
+		if (n > 0) bufsize = n + 1;
+		else bufsize *= 2;
+		buf.resize(bufsize);
+	}
+
+	std::ostringstream	oss;
+	oss << "[" << ts << "] " << std::left << std::setw(5) << level_str(lvl) << " " << &buf[0];
+
+	(*s_err) << oss.str() << std::endl;
+	s_err->flush();
 }
 
 void Logger::vaccessf(const char *fmt, va_list ap) {
-	FILE *out = s_access ? s_access : s_err ? s_err : stderr;
-	char ts[32]; now_timestamp(ts, sizeof ts);
-	// Access logs begin with timestamp too for readability
-	fprintf(out, "[%s] ", ts);
-	vfprintf(out, fmt, ap);
-	fputc('\n', out);
-	fflush(out);
+	std::ostream *out = s_access ? s_access : (s_err ? s_err : &std::cerr);
+
+	char ts[32];
+	now_timestamp(ts, sizeof ts);
+
+	int bufsize = 1024;
+	std::vector<char> buf(bufsize);
+	while (true) {
+		va_list ap_copy;
+		std::memcpy(ap_copy, ap, sizeof(va_list));
+		int n = vsnprintf(&buf[0], bufsize, fmt, ap_copy);
+		va_end(ap_copy);
+		if (n >= 0 && n < bufsize) break;
+		if (n > 0) bufsize = n + 1;
+		else bufsize *= 2;
+		buf.resize(bufsize);
+	}
+
+	std::ostringstream oss;
+	oss << "[" << ts << "] " << &buf[0];
+
+	(*out) << oss.str() << std::endl;
+	out->flush();
 }

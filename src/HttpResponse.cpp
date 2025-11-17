@@ -40,7 +40,7 @@ std::vector<char>	HttpResponse::serialize() const {
 	}
 
 	std::ostringstream	oss;
-	oss << "HTTP/1.1" << statusCodeToInt(_status_code) << getStatusMessage(_status_code) << "\r\n";
+	oss << "HTTP/1.1 " << statusCodeToInt(_status_code) << " " << getStatusMessage(_status_code) << "\r\n";
 	for (std::map<std::string, std::string>::const_iterator it = hdrs.begin(); it != hdrs.end(); it++)
 		oss << it->first << ": " << it->second << "\r\n";
 	oss << "\r\n";

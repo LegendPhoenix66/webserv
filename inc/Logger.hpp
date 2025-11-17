@@ -1,14 +1,17 @@
 #ifndef LOGGER_HPP
 #define LOGGER_HPP
 
-#include <stdarg.h> // TODO: needs to be converted to c++
-#include <stdio.h>
 #include <time.h>
-#include <string.h>
-#include <errno.h>
 #include <sys/stat.h>
 #include <unistd.h>
-#include <stdlib.h>
+#include <iostream>
+#include <fstream>
+#include <sstream>
+#include <iomanip>
+#include <vector>
+#include <cstdarg>
+#include <cstdio>
+#include <cstring>
 
 // Simple logger with stderr + optional file sinks. C++98‑friendly.
 

@@ -8,13 +8,13 @@ bool file_exists(const std::string &path, bool *isDir) {
 }
 
 bool read_file(const std::string &path, std::string &out) {
-	FILE *f = std::fopen(path.c_str(), "rb");
+	std::ifstream	f(path.c_str(), std::ios::binary);
 	if (!f) return false;
 	std::string buf;
 	char tmp[4096];
-	size_t n;
-	while ((n = std::fread(tmp, 1, sizeof(tmp), f)) > 0) buf.append(tmp, n);
-	std::fclose(f);
+	while (f.read(tmp, sizeof(tmp)) || f.gcount() > 0)
+		buf.append(tmp, f.gcount());
+	f.close();
 	out.swap(buf);
 	return true;
 }
@@ -69,7 +69,8 @@ bool generate_autoindex_body(const std::string &fsPath, const std::string &urlPa
 		href += entryName;
 		// Detect directory for trailing slash
 		std::string childPath = join_path(fsPath, entryName);
-		bool isDir = false; (void)file_exists(childPath, &isDir);
+		bool isDir = false;
+		(void)file_exists(childPath, &isDir);
 		oss << "  <li><a href=\"" << html_escape(href + (isDir ? "/" : "")) << "\">"
 			<< html_escape(entryName + (isDir ? "/" : "")) << "</a></li>\n";
 	}

@@ -92,13 +92,8 @@ std::string	Connection::getMimeType(const std::string &path) {
 	return "application/octet-stream";
 }
 
-bool	Connection::handle(const std::string &root,
-			const std::vector<std::string> &indexList,
-			const HttpRequest &req,
-			bool isHead,
-			bool autoindex,
-			HttpResponse &outResp,
-			std::string &err) {
+bool	Connection::handle(const std::string &root, const std::vector<std::string> &indexList, const HttpRequest &req, bool isHead,
+				   bool autoindex, HttpResponse &outResp, const std::string &url, std::string &err) {
 	std::string clean = sanitize(req.target);
 	std::string path = join_path(root, clean);
 
@@ -128,7 +123,7 @@ bool	Connection::handle(const std::string &root,
 				return false;
 			}
 			std::string body;
-			if (!generate_autoindex_body(path, clean, body)) {
+			if (!generate_autoindex_body(path, url, body)) {
 				err = "autoindex generation failed";
 				return false;
 			}
@@ -244,7 +239,7 @@ void	Connection::returnHttpResponse(const HttpStatusCode::e &status_code) {
 	resp.setHeader("Content-Type", content_type);
 	resp.setBody(body);
 	std::ostringstream	oss;
-	oss << body;
+	oss << body.size();
 	resp.setHeader("Content-Length", oss.str());
 	resp.setHeader("Connection", "close");
 	_wbuf = resp.serialize();
@@ -315,7 +310,7 @@ void	Connection::returnHttpResponse(const HttpRequest &req, const ReturnDir &dir
 	}
 	std::string	dest = loc->getReturnDir().url + suffix;
 	resp.setHeader("Location", dest);
-	resp.setHeader("Content-Length", "");
+	resp.setHeader("Content-Length", "0");
 	resp.setHeader("Connection", "close");
 	_wbuf = resp.serialize();
 	_status_code = dir.code;
@@ -771,7 +766,7 @@ bool Connection::onReadable() {
 						std::cout << "[trace] static resolve: strip '" << lpath << "' → '" << adj.target << "' under root '" << effRoot << "'" << std::endl;
 					}
 				}
-				if (handle(effRoot, effIndex, adj, isHead, effAutoindex, resp, err)) {
+				if (handle(effRoot, effIndex, adj, isHead, effAutoindex, resp, loc->getPath(), err)) {
 					_wbuf = resp.serialize();
 					_status_code = 200;
 				} else {
@@ -935,8 +930,16 @@ bool Connection::startCgiWith(const std::string &cgiPass, const std::string &cgi
 		envv.push_back(std::string("SERVER_PORT=") + port);
 		std::string target = _req.target; std::string::size_type q = target.find('?'); std::string qs = (q == std::string::npos) ? std::string("") : target.substr(q + 1);
 		envv.push_back(std::string("QUERY_STRING=") + qs);
-		std::string ct = find_header_icase(req.headers, "Content-Type"); if (!ct.empty()) envv.push_back(std::string("CONTENT_TYPE=") + ct);
-		if (!_bodyBuf.empty()) { std::ostringstream cl; cl << _bodyBuf.size(); envv.push_back(std::string("CONTENT_LENGTH=") + cl.str()); }
+		std::string ct = find_header_icase(req.headers, "Content-Type");
+		if (!ct.empty()) envv.push_back(std::string("CONTENT_TYPE=") + ct);
+		if (!_bodyBuf.empty()) {
+			std::ostringstream cl;
+			cl << _bodyBuf.size();
+			envv.push_back(std::string("CONTENT_LENGTH=") + cl.str());
+		}
+		else {
+			envv.push_back(std::string("CONTENT_LENGTH=0"));
+		}
 		envv.push_back("GATEWAY_INTERFACE=CGI/1.1");
 		for (std::map<std::string,std::string>::const_iterator it = req.headers.begin(); it != req.headers.end(); ++it) {
 			std::string name = it->first; std::string val = it->second;
@@ -958,6 +961,7 @@ bool Connection::startCgiWith(const std::string &cgiPass, const std::string &cgi
 	// Parent
 	_cgiPid = pid; _cgiIn = inpipe[1]; _cgiOut = outpipe[0];
 	::close(inpipe[0]); ::close(outpipe[1]);
+
 	// Non-blocking
 	int fl;
 	fl = fcntl(_cgiIn, F_GETFL, 0); if (fl != -1) fcntl(_cgiIn, F_SETFL, fl | O_NONBLOCK);

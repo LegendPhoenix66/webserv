@@ -9,7 +9,7 @@
 #include <iostream>
 #include <cerrno>
 #include <cstring>
-#include <unistd.h> // change to c++
+#include <unistd.h>
 #include <fcntl.h>
 #include <sys/socket.h>
 

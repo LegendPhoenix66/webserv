@@ -30,3 +30,33 @@ main {
 button {
 	cursor: pointer;
 }
+
+.container {
+	margin: 1rem 0;
+}
+
+.container button {
+	margin-right: .5rem;
+	padding: .4rem .75rem;
+}
+
+.file-info {
+	display: inline-block;
+	margin-left: .5rem;
+	color: #444;
+}
+
+.status {
+	margin-top: .75rem;
+	color: #2b6cb0;
+}
+
+.button {
+	display: inline-block;
+	margin-right: .5rem;
+	padding: .4rem .75rem;
+	text-decoration: none;
+	background:#eee;
+	border:1px solid #ccc;
+	color:inherit;
+}

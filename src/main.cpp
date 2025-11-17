@@ -8,7 +8,7 @@
 static void print_usage() {
 	std::cout << "Usage: webserv [options] [config_file]\n"
 				 "Options:\n"
-				 "  --help       Show this help and exit\n"
+				 "  --help       Show this help and exit\n";
 }
 
 int main(int argc, char **argv) {
