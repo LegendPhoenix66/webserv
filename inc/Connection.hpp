@@ -133,7 +133,7 @@ private:
 	void	returnHttpResponse(const HttpStatusCode::e &status_code, const std::string &location, const size_t sizeBytes);
 
 	bool	handle(const std::string &root, const std::vector<std::string> &indexList, const HttpRequest &req, bool isHead,
-				bool autoindex, HttpResponse &outResp, const std::string &url, std::string &err);
+				   bool autoindex, HttpResponse &outResp, const Location *loc, std::string &err);
 
 	bool	startCgiWith(const std::string &cgiPass, const std::string &cgiPath,
 								  const std::string &effRoot, const HttpRequest &req);

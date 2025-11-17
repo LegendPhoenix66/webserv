@@ -93,7 +93,7 @@ std::string	Connection::getMimeType(const std::string &path) {
 }
 
 bool	Connection::handle(const std::string &root, const std::vector<std::string> &indexList, const HttpRequest &req, bool isHead,
-				   bool autoindex, HttpResponse &outResp, const std::string &url, std::string &err) {
+						   bool autoindex, HttpResponse &outResp, const Location *loc, std::string &err) {
 	std::string clean = sanitize(req.target);
 	std::string path = join_path(root, clean);
 
@@ -123,7 +123,7 @@ bool	Connection::handle(const std::string &root, const std::vector<std::string> 
 				return false;
 			}
 			std::string body;
-			if (!generate_autoindex_body(path, url, body)) {
+			if (!generate_autoindex_body(path, loc->getPath(), body)) {
 				err = "autoindex generation failed";
 				return false;
 			}
@@ -766,7 +766,7 @@ bool Connection::onReadable() {
 						std::cout << "[trace] static resolve: strip '" << lpath << "' → '" << adj.target << "' under root '" << effRoot << "'" << std::endl;
 					}
 				}
-				if (handle(effRoot, effIndex, adj, isHead, effAutoindex, resp, loc->getPath(), err)) {
+				if (handle(effRoot, effIndex, adj, isHead, effAutoindex, resp, loc, err)) {
 					_wbuf = resp.serialize();
 					_status_code = 200;
 				} else {
