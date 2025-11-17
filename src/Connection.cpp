@@ -221,7 +221,7 @@ std::string	Connection::errorPageSetup(const HttpStatusCode::e &status_code, std
 			content_type = getMimeType(error_page_path);
 		}
 	}
-	if (body.empty() && statusCodeToInt(status_code) >= 300) {
+	if (body.empty()) {
 		std::ostringstream error_body;
 		error_body	<< "<!doctype html><html><head><title>" << statusCodeToInt(status_code)
 					  << " " << getStatusMessage(status_code) << "</title></head><body><h1>"
@@ -626,50 +626,12 @@ bool Connection::onReadable() {
 
 			// Method filtering
 			if (loc && !loc->getAllowedMethods().empty()) {
-				/*bool getAllowed = (loc->methods_mask & 1u) != 0;
-				bool postAllowed = (loc->methods_mask & 4u) != 0;
-				bool deleteAllowed = (loc->methods_mask & 8u) != 0;
-				// HEAD piggybacks on GET allowance
-				if ((isGet || isHead) && !getAllowed) {
-					std::string allow;
-					if (loc->methods_mask & 1u) { allow += "GET, HEAD"; }
-					if (loc->methods_mask & 4u) { if (!allow.empty()) allow += ", "; allow += "POST"; }
-					if (loc->methods_mask & 8u) { if (!allow.empty()) allow += ", "; allow += "DELETE"; }
-					if (allow.empty()) allow = "GET, HEAD";
-					returnHttpResponse(HttpStatusCode::MethodNotAllowed, allow);
-					_t_write_start = now_ms();
-					return true;
-				}
-				if (isPost && !postAllowed) {
-					std::string allow;
-					if (loc->methods_mask & 1u) { allow += "GET, HEAD"; }
-					if (loc->methods_mask & 4u) { if (!allow.empty()) allow += ", "; allow += "POST"; }
-					if (loc->methods_mask & 8u) { if (!allow.empty()) allow += ", "; allow += "DELETE"; }
-					if (allow.empty()) allow = "GET, HEAD";
-					returnHttpResponse(HttpStatusCode::MethodNotAllowed, allow);
-					_t_write_start = now_ms();
-					return true;
-				}
-				if (isDelete && !deleteAllowed) {
-					std::string allow;
-					if (loc->methods_mask & 1u) { allow += "GET, HEAD"; }
-					if (loc->methods_mask & 4u) { if (!allow.empty()) allow += ", "; allow += "POST"; }
-					if (loc->methods_mask & 8u) { if (!allow.empty()) allow += ", "; allow += "DELETE"; }
-					if (allow.empty()) allow = "GET, HEAD";
-					returnHttpResponse(HttpStatusCode::MethodNotAllowed, allow);
-					_t_write_start = now_ms();
-					return true;
-				}*/
 				bool	getAllowed = loc->findMethod("GET") != std::string::npos;
-				bool	headListed = loc->findMethod("HEAD") != std::string::npos;
 				bool	postAllowed = loc->findMethod("POST") != std::string::npos;
 				bool	deleteAllowed = loc->findMethod("DELETE") != std::string::npos;
-				bool	headAllowed = headListed || getAllowed;
+				bool	headAllowed = getAllowed || loc->findMethod("HEAD") != std::string::npos;
 
-				bool	disallowed = (isGet && !getAllowed)
-									|| (isHead && !headAllowed)
-									|| (isPost && !postAllowed)
-									|| (isDelete && !deleteAllowed);
+				bool	disallowed = ((isGet || isHead) && !getAllowed) || (isPost && !postAllowed) || (isDelete && !deleteAllowed);
 
 				if (disallowed) {
 					std::string	allow;

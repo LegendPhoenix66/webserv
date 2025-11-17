@@ -55,10 +55,10 @@ void	Location::parseDeclaration(std::vector<std::string> &conf_vec, size_t &i) {
 		throw InvalidFormat("Invalid location declaration.");
 
 	ss >> this->path;
-	if (this->path.empty() || this->path == "{")
+	if (path.empty() || path == "{")
 		throw InvalidFormat("Missing or invalid path in location declaration.");
-	if (this->path[this->path.size() - 1] == '/')
-		this->path.erase(this->path.size() - 1);
+	if (path.size() > 1 && path[this->path.size() - 1] == '/')
+		path.erase(path.size() - 1);
 
 	ss >> token;
 	if (token == "{")
