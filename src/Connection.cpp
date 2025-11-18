@@ -233,6 +233,19 @@ std::string	Connection::errorPageSetup(const HttpStatusCode::e &status_code, std
 	return body;
 }
 
+void Connection::returnOKResponse(const std::string &body, const std::string &content_type) {
+	HttpResponse	resp(HttpStatusCode::OK);
+	resp.setHeader("Content-Type", content_type);
+	if (!body.empty()) resp.setBody(body);
+	std::ostringstream	oss;
+	oss << body.size();
+	resp.setHeader("Content-Length", oss.str());
+	resp.setHeader("Connection", "close");
+	_wbuf = resp.serialize();
+	_status_code = 200;
+	_t_write_start = now_ms();
+}
+
 void	Connection::returnHttpResponse(const HttpStatusCode::e &status_code) {
 	HttpResponse	resp(status_code);
 	std::string		content_type = "text/html; charset=UTF=8";
@@ -363,16 +376,15 @@ bool Connection::processChunkedBuffered() {
 				std::string full = join_path_simple(_uploadStore, name);
 				bool existed = false; struct stat st; if (::stat(full.c_str(), &st) == 0) existed = S_ISREG(st.st_mode);
 				FILE *f = std::fopen(full.c_str(), "wb");
-				if (!f) { returnHttpResponse(HttpStatusCode::InternalServerError); _t_write_start = now_ms(); return true; }
+				if (!f) { returnHttpResponse(HttpStatusCode::InternalServerError); return true; }
 				size_t total = 0; const char *p = _bodyBuf.data(); size_t left = _bodyBuf.size();
 				while (left > 0) { size_t w = std::fwrite(p + total, 1, left, f); if (w == 0) break; total += w; left -= w; }
 				std::fclose(f);
-				if (total != _bodyBuf.size()) { returnHttpResponse(HttpStatusCode::InternalServerError); _t_write_start = now_ms(); return true; }
+				if (total != _bodyBuf.size()) { returnHttpResponse(HttpStatusCode::InternalServerError); return true; }
 				std::string url = _matchedLocPath; if (url.empty()) url = "/"; if (url[url.size()-1] != '/') url += "/"; url += name;
 				if (existed) {
 					std::ostringstream body; body << "Uploaded " << total << " bytes to " << url << " (overwritten)\n";
-					HttpResponse resp; resp.setStatus(HttpStatusCode::OK); resp.setHeader("Connection", "close"); resp.setHeader("Content-Type", "text/plain; charset=utf-8"); { std::ostringstream oss; oss << body.str().size(); resp.setHeader("Content-Length", oss.str()); } resp.setBody(body.str());
-					_wbuf = resp.serialize(); _status_code = 200; _t_write_start = now_ms();
+					returnOKResponse(body.str(), "text/plain; charset=utf-8");
 				} else {
 					returnHttpResponse(HttpStatusCode::Created, url, total);
 				}
@@ -380,8 +392,7 @@ bool Connection::processChunkedBuffered() {
 			} else {
 				// Placeholder 200 when no upload_store configured
 				std::ostringstream body; body << "Received " << _bodyBuf.size() << " bytes\n";
-				HttpResponse resp; resp.setStatus(HttpStatusCode::OK); resp.setHeader("Connection", "close"); resp.setHeader("Content-Type", "text/plain; charset=utf-8"); { std::ostringstream oss; oss << body.str().size(); resp.setHeader("Content-Length", oss.str()); } resp.setBody(body.str());
-				_wbuf = resp.serialize(); _status_code = 200; _t_write_start = now_ms();
+				returnOKResponse(body.str(), "text/plain; charset=utf-8");
 				return true;
 			}
 		}
@@ -493,7 +504,6 @@ bool Connection::onReadable() {
 					FILE *f = std::fopen(full.c_str(), "wb");
 					if (!f) {
 						returnHttpResponse(HttpStatusCode::InternalServerError);
-						_t_write_start = now_ms();
 						return true;
 					}
 					size_t total = 0;
@@ -506,7 +516,6 @@ bool Connection::onReadable() {
 					std::fclose(f);
 					if (total != _bodyBuf.size()) {
 						returnHttpResponse(HttpStatusCode::InternalServerError);
-						_t_write_start = now_ms();
 						return true;
 					}
 					// Build Location URL under the matched location path
@@ -517,16 +526,7 @@ bool Connection::onReadable() {
 					if (existed) {
 						std::ostringstream body;
 						body << "Uploaded " << total << " bytes to " << url << " (overwritten)\n";
-						HttpResponse resp(HttpStatusCode::OK);
-						resp.setHeader("Connection", "close");
-						resp.setHeader("Content-Type", "text/plain; charset=utf-8");
-						{
-							std::ostringstream oss;
-							oss << body.str().size();
-							resp.setHeader("Content-Length", oss.str());
-						}
-						resp.setBody(body.str());
-						_wbuf = resp.serialize(); _status_code = 200; _t_write_start = now_ms();
+						returnOKResponse(body.str(), "text/plain; charset=utf-8");
 						return true;
 					} else {
 						returnHttpResponse(HttpStatusCode::Created, url, total);
@@ -537,14 +537,7 @@ bool Connection::onReadable() {
 					std::cout << "[trace] post complete: upload_store is empty — returning placeholder 200 (no file write)" << std::endl;
 					std::ostringstream body;
 					body << "Received " << _bodyBuf.size() << " bytes\n";
-					HttpResponse resp(HttpStatusCode::OK);
-					resp.setHeader("Connection", "close");
-					resp.setHeader("Content-Type", "text/plain; charset=utf-8");
-					{ std::ostringstream oss; oss << body.str().size(); resp.setHeader("Content-Length", oss.str()); }
-					resp.setBody(body.str());
-					_wbuf = resp.serialize();
-					_status_code = 200;
-					_t_write_start = now_ms();
+					returnOKResponse(body.str(), "text/plain; charset=utf-8");
 					return true;
 				}
 			}
@@ -616,7 +609,6 @@ bool Connection::onReadable() {
 			// Redirect takes precedence if configured
 			if (loc && loc->hasReturnDir()) {
 				returnHttpResponse(req, loc->getReturnDir(), loc);
-				_t_write_start = now_ms();
 				return true;
 			}
 
@@ -652,7 +644,6 @@ bool Connection::onReadable() {
 
 					if (allow.empty()) allow = "GET, HEAD";
 					returnHttpResponse(HttpStatusCode::MethodNotAllowed, allow);
-					_t_write_start = now_ms();
 					return true;
 				}
 			}
@@ -686,7 +677,6 @@ bool Connection::onReadable() {
 				std::string name = base_name_only(suffix);
 				if (name.empty()) {
 					returnHttpResponse(HttpStatusCode::NotFound);
-					_t_write_start = now_ms();
 					return true;
 				}
 				std::string full = join_path_simple(base, name);
@@ -695,7 +685,6 @@ bool Connection::onReadable() {
 				struct stat st;
 				if (::stat(full.c_str(), &st) != 0 || !S_ISREG(st.st_mode)) {
 					returnHttpResponse(HttpStatusCode::NotFound);
-					_t_write_start = now_ms();
 					return true;
 				}
 				if (::unlink(full.c_str()) == 0) {
@@ -813,8 +802,8 @@ bool Connection::onReadable() {
 						std::string url = _matchedLocPath; if (url.empty()) url = "/"; if (url[url.size()-1] != '/') url += "/"; url += name;
 						if (existed) {
 							std::ostringstream body2; body2 << "Uploaded " << total << " bytes to " << url << " (overwritten)\n";
-							HttpResponse resp(HttpStatusCode::OK); resp.setHeader("Connection", "close"); resp.setHeader("Content-Type", "text/plain; charset=utf-8"); { std::ostringstream oss; oss << body2.str().size(); resp.setHeader("Content-Length", oss.str()); } resp.setBody(body2.str());
-							_wbuf = resp.serialize(); _status_code = 200; _t_write_start = now_ms(); return true;
+							returnOKResponse(body2.str(), "text/plain; charset=utf-8");
+							return true;
 						} else {
 							returnHttpResponse(HttpStatusCode::Created, url, total); return true;
 						}
@@ -822,8 +811,8 @@ bool Connection::onReadable() {
 						LOG_WARNF("post complete(pref): upload_store is empty — returning placeholder 200 (no file write)");
 						std::cout << "[trace] post complete(pref): upload_store is empty — returning placeholder 200 (no file write)" << std::endl;
 						std::ostringstream body; body << "Received " << _bodyBuf.size() << " bytes\n";
-						HttpResponse resp(HttpStatusCode::OK); resp.setHeader("Connection", "close"); resp.setHeader("Content-Type", "text/plain; charset=utf-8"); { std::ostringstream oss; oss << body.str().size(); resp.setHeader("Content-Length", oss.str()); } resp.setBody(body.str());
-						_wbuf = resp.serialize(); _status_code = 200; _t_write_start = now_ms(); return true;
+						returnOKResponse(body.str(), "text/plain; charset=utf-8");
+						return true;
 					}
 				}
 				// otherwise continue reading loop to collect the remaining body
@@ -861,17 +850,17 @@ bool Connection::onWritable() {
 
 bool Connection::startCgiWith(const std::string &cgiPass, const std::string &cgiPath,
 							  const std::string &effRoot, const HttpRequest &req) {
-	if (cgiPass.empty()) { returnHttpResponse(HttpStatusCode::InternalServerError); _t_write_start = now_ms(); return true; }
+	if (cgiPass.empty()) { returnHttpResponse(HttpStatusCode::InternalServerError); return true; }
 	std::string script = cgiPath.empty() ? join_path_simple(effRoot, req.target) : cgiPath;
 
 	int inpipe[2] = { -1, -1 }; int outpipe[2] = { -1, -1 };
-	if (::pipe(inpipe) != 0) { returnHttpResponse(HttpStatusCode::InternalServerError); _t_write_start = now_ms(); return true; }
-	if (::pipe(outpipe) != 0) { ::close(inpipe[0]); ::close(inpipe[1]); returnHttpResponse(HttpStatusCode::InternalServerError); _t_write_start = now_ms(); return true; }
+	if (::pipe(inpipe) != 0) { returnHttpResponse(HttpStatusCode::InternalServerError); return true; }
+	if (::pipe(outpipe) != 0) { ::close(inpipe[0]); ::close(inpipe[1]); returnHttpResponse(HttpStatusCode::InternalServerError); return true; }
 
 	pid_t pid = ::fork();
 	if (pid < 0) {
 		::close(inpipe[0]); ::close(inpipe[1]); ::close(outpipe[0]); ::close(outpipe[1]);
-		returnHttpResponse(HttpStatusCode::InternalServerError); _t_write_start = now_ms(); return true;
+		returnHttpResponse(HttpStatusCode::InternalServerError); return true;
 	}
 
 	if (pid == 0) {

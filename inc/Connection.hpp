@@ -129,8 +129,8 @@ private:
 	void	returnHttpResponse(const HttpStatusCode::e &status_code);
 	void	returnHttpResponse(const HttpStatusCode::e &status_code, const std::string &allow);
 	void	returnHttpResponse(const HttpRequest &req, const ReturnDir &dir, const Location *loc);
-
 	void	returnHttpResponse(const HttpStatusCode::e &status_code, const std::string &location, const size_t sizeBytes);
+	void returnOKResponse(const std::string &body, const std::string &content_type);
 
 	bool	handle(const std::string &root, const std::vector<std::string> &indexList, const HttpRequest &req, bool isHead,
 				   bool autoindex, HttpResponse &outResp, const Location *loc, std::string &err);
