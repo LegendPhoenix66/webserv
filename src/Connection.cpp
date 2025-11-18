@@ -668,7 +668,7 @@ bool Connection::onReadable() {
 			}
 			if (effectiveLimit < 0 && _srv && _srv->getClientMaxBodySize() > 0) effectiveLimit = (size_t)_srv->getClientMaxBodySize();
 			_cgiEnabled = (loc && !loc->getCgiPass().empty());
-			_locCgiPass = _cgiEnabled ? loc->getCgiPath() : std::string();
+			_locCgiPass = _cgiEnabled ? loc->getCgiPass() : std::string();
 			_locCgiPath = (loc && !loc->getCgiPath().empty()) ? loc->getCgiPath() : std::string();
 			_effRootForRequest = effRoot;
 
@@ -913,7 +913,11 @@ bool Connection::startCgiWith(const std::string &cgiPass, const std::string &cgi
 		const char *argv0 = cgiPass.c_str();
 		std::string argvScript = script;
 		std::string::size_type slash = script.find_last_of('/');
-		if (slash != std::string::npos) { std::string dir = script.substr(0, slash); (void)::chdir(dir.c_str()); argvScript = script.substr(slash + 1); }
+		if (slash != std::string::npos) {
+			std::string dir = script.substr(0, slash);
+			(void)::chdir(dir.c_str());
+			argvScript = script.substr(slash + 1);
+		}
 		const char *argv1 = argvScript.c_str();
 		char *const argvv[] = { const_cast<char*>(argv0), const_cast<char*>(argv1), 0 };
 		::execve(cgiPass.c_str(), argvv, &envp[0]);
@@ -1016,7 +1020,7 @@ bool Connection::onAuxEvent(int fd, short revents) {
 					if (lname == "status") { std::istringstream s(value); s >> code; }
 					else { _cgiHdrs[name] = value; }
 				}
-				HttpResponse resp; resp.setStatus(getStatusCode(code));
+				HttpResponse resp(getStatusCode(code));
 				for (std::map<std::string,std::string>::const_iterator it=_cgiHdrs.begin(); it!=_cgiHdrs.end(); ++it) resp.setHeader(it->first, it->second);
 				resp.setHeader("Connection", "close");
 				std::vector<char> head = resp.serialize();
