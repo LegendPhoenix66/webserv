@@ -96,6 +96,7 @@ bool	Connection::handle(const std::string &root, const std::vector<std::string> 
 						   bool autoindex, HttpResponse &outResp, const Location *loc, std::string &err) {
 	std::string clean = sanitize(req.target);
 	std::string path = join_path(root, clean);
+	std::string	url = loc->getPath() + clean;
 
 	bool isDir = false;
 	if (!file_exists(path, &isDir)) {
@@ -123,7 +124,7 @@ bool	Connection::handle(const std::string &root, const std::vector<std::string> 
 				return false;
 			}
 			std::string body;
-			if (!generate_autoindex_body(path, loc->getPath(), body)) {
+			if (!generate_autoindex_tree(path, url, body)) {
 				err = "autoindex generation failed";
 				return false;
 			}

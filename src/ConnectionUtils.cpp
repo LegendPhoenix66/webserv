@@ -53,29 +53,56 @@ std::string html_escape(const std::string &s) {
 	return o;
 }
 
-bool generate_autoindex_body(const std::string &fsPath, const std::string &urlPath, std::string &body) {
+bool	generate_autoindex_tree(const std::string &fsPath, const std::string &urlPath, std::string &body) {
 	DIR *dir = opendir(fsPath.c_str());
 	if (!dir) return false;
-	std::ostringstream oss;
+
+	std::ostringstream	oss;
 	oss << "<html><head><title>Index of " << html_escape(urlPath) << "</title></head><body>\n";
-	oss << "<h1>Index of " << html_escape(urlPath) << "</h1>\n<ul>\n";
+	oss << "<h1>Index of " << html_escape(urlPath) << "</h1>\n<ul style=list-style:none>\n";
+
 	struct dirent *de;
+	std::vector<std::string>	entries;
+
 	while ((de = readdir(dir)) != 0) {
 		const char *name = de->d_name;
-		if (name[0] == '.' && (name[1] == 0 || (name[1] == '.' && name[2] == 0))) continue; // skip . and ..
-		std::string entryName(name);
-		std::string href = urlPath;
-		if (href.size() == 0 || href[href.size()-1] != '/') href += "/";
-		href += entryName;
-		// Detect directory for trailing slash
-		std::string childPath = join_path(fsPath, entryName);
-		bool isDir = false;
-		(void)file_exists(childPath, &isDir);
-		oss << "  <li><a href=\"" << html_escape(href + (isDir ? "/" : "")) << "\">"
-			<< html_escape(entryName + (isDir ? "/" : "")) << "</a></li>\n";
+		if (name[0] == '.' && (name[1] == 0 || (name[1] == '.' && name[2] == 0)))
+			continue;
+		entries.push_back(std::string(name));
 	}
 	closedir(dir);
-	oss << "</ul>\n</body></html>\n";
+
+	std::sort(entries.begin(), entries.end());
+
+	if (urlPath != "/" && !urlPath.empty()) {
+		std::string parentPath = urlPath;
+		if (parentPath[parentPath.size() - 1] == '/')
+			parentPath = parentPath.substr(0, parentPath.size() - 1);
+		std::string::size_type	lastSlash = parentPath.find_last_of('/');
+		if (lastSlash != std::string::npos) {
+			parentPath = parentPath.substr(0, lastSlash + 1);
+			if (parentPath.empty()) parentPath = "/";
+		}
+		oss << "<li style=\"padding:.2rem 0\">";
+		oss << "<a href=\"" << html_escape(parentPath) << "\"><- PARENT DIRECTORY</a></li>\n";
+	}
+
+	for (size_t i = 0; i < entries.size(); i++) {
+		std::string	childPath = join_path(fsPath, entries[i]);
+		bool	isDir = false;
+		file_exists(childPath, &isDir);
+
+		std::string	href = urlPath;
+		if (href.size() == 0 || href[href.size() - 1] != '/') href += "/";
+		href += entries[i];
+
+		oss << "<li style=\"padding:.2rem 0\">" << (isDir ? "[DIR]  " : "[FILE] ");
+		oss << "<a href=\"" << html_escape(href + (isDir ? "/" : "")) << "\">";
+		oss << html_escape(entries[i] + (isDir ? "/" : "")) << "</a>\n";
+	}
+
+	oss << "</li>\n</body></html>\n";
+
 	body = oss.str();
 	return true;
 }
