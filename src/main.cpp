@@ -69,6 +69,7 @@ int main(int argc, char **argv) {
 				std::cerr << "startup error on " << key << ": " << emsg << "\n";
 				// cleanup
 				for (size_t k = 0; k < listeners.size(); ++k) { delete listeners[k]; }
+				delete lst;
 				return 2;
 			}
 			listeners.push_back(lst);
