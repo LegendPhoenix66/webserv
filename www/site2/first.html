@@ -26,14 +26,14 @@
 
     <section class="controls">
       <h3>File Upload Test</h3>
-      <form action="/upload" method="post" enctype="multipart/form-data">
+      <form id="upload-form" method="post" enctype="multipart/form-data">
         <label for="file-input" class="button">Choose file…</label>
         <input id="file-input" name="file" type="file">
         <button type="submit" class="button">Upload to /upload</button>
       </form>
 
       <h3>CGI Test</h3>
-      <form action="/cgi-bin/echo.py" method="post">
+      <form method="post" action="/cgi-bin/echo.py">
         <label for="cgi-input">Message to echo:</label>
         <input id="cgi-input" name="message" type="text" value="Hello CGI!" style="padding:.4rem;margin-right:.5rem;">
         <button type="submit" class="button">Test CGI POST</button>

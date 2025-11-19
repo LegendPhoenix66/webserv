@@ -96,7 +96,8 @@ bool	Connection::handle(const std::string &root, const std::vector<std::string> 
 						   bool autoindex, HttpResponse &outResp, const Location *loc, std::string &err) {
 	std::string clean = sanitize(req.target);
 	std::string path = join_path(root, clean);
-	std::string	url = (loc ? loc->getPath() : "/") + clean;
+	std::string	lpath = loc ? loc->getPath() : "/";
+	std::string	url = ((loc && !loc->getRoot().empty()) ? lpath + clean : clean);
 
 	bool isDir = false;
 	if (!file_exists(path, &isDir)) {
@@ -483,7 +484,10 @@ bool Connection::onReadable() {
 			_bodyBuf.append(buf, take);
 			_clRemaining -= static_cast<long>(take);
 			if (_clRemaining == 0) {
-				if (_cgiEnabled) { startCgiCurrent(); return true; }
+				if (_cgiEnabled) {
+					startCgiCurrent();
+					return true;
+				}
 				// Body complete → if upload_store is configured, write to disk; else simple 200 placeholder
 				if (!_uploadStore.empty()) {
 					std::string target = normalize_target_simple(_req.target);
@@ -692,7 +696,6 @@ bool Connection::onReadable() {
 				} else {
 					returnHttpResponse(HttpStatusCode::InternalServerError);
 				}
-				_t_write_start = now_ms();
 				return true;
 			}
 			if (_cgiEnabled && isGet) {
@@ -721,6 +724,7 @@ bool Connection::onReadable() {
 				if (handle(effRoot, effIndex, adj, isHead, effAutoindex, resp, loc, err)) {
 					_wbuf = resp.serialize();
 					_status_code = 200;
+					_t_write_start = now_ms();
 				} else {
 					// Treat unexpected read/autoindex generation failures as 500; missing files as 404
 					if (err.find("read error:") == 0 || err == "autoindex generation failed") {
@@ -729,7 +733,6 @@ bool Connection::onReadable() {
 						returnHttpResponse(HttpStatusCode::NotFound);
 					}
 				}
-				_t_write_start = now_ms();
 				return true; // ready to write
 			}
 
@@ -969,7 +972,8 @@ bool Connection::onAuxEvent(int fd, short revents) {
 			return true;
 		}
 		if (revents & POLLIN) {
-			char buf[4096]; ssize_t n = ::read(_cgiOut, buf, sizeof buf);
+			char buf[4096];
+			ssize_t n = ::read(_cgiOut, buf, sizeof buf);
 			if (n == 0) {
 				if (_loop) _loop->unregisterAuxFd(_cgiOut);
 				::close(_cgiOut); _cgiOut = -1;
@@ -979,7 +983,10 @@ bool Connection::onAuxEvent(int fd, short revents) {
 					returnHttpResponse(HttpStatusCode::BadGateway);
 					return true;
 				}
-				_cgiState = CGI_DONE; (void)::waitpid(_cgiPid, 0, WNOHANG); _cgiPid = -1; return true;
+
+				_cgiState = CGI_DONE;
+				(void)::waitpid(_cgiPid, 0, WNOHANG);
+				_cgiPid = -1; return true;
 			}
 			if (n < 0) { return true; }
 			_t_last_active = tnow;
@@ -1029,12 +1036,17 @@ bool Connection::onAuxEvent(int fd, short revents) {
 			}
 			if (n > 0) {
 				if (_cgiOutputSent + (size_t)n > CGI_OUTPUT_MAX) {
-					if (_cgiPid > 0) { (void)::kill(_cgiPid, SIGKILL); (void)::waitpid(_cgiPid, 0, WNOHANG); _cgiPid = -1; }
+					if (_cgiPid > 0) {
+						(void)::kill(_cgiPid, SIGKILL);
+						(void)::waitpid(_cgiPid, 0, WNOHANG);
+						_cgiPid = -1;
+					}
 					closeCgiPipes();
 					returnHttpResponse(HttpStatusCode::BadGateway);
 					return true;
 				}
-				_wbuf.insert(_wbuf.end(), buf, buf + n); _cgiOutputSent += (size_t)n;
+				_wbuf.insert(_wbuf.end(), buf, buf + n);
+				_cgiOutputSent += (size_t)n;
 			}
 			return true;
 		}

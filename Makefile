@@ -60,4 +60,4 @@ test:
 
 re: fclean $(NAME)
 
-.PHONY: all clean fclean test re
+.PHONY: all clean fclean test asan re
