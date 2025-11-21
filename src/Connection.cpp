@@ -7,7 +7,7 @@ static const uint64_t WRITE_DRAIN_TIMEOUT_MS = 10000ULL;
 Connection::Connection(int fd, const std::vector<const ServerConfig*> &group, const std::string &bindKey, EventLoop* loop)
 		: _fd(fd), _closed(false), _group(group), _srv(0), _bindKey(bindKey), _vhostName("-"),_routerSrv(0),
 		  _bodyState(BODY_NONE), _bodyLimit(-1), _clRemaining(0),
-		  _chunkRemaining(-1), _chunkReadingTrailers(false),
+		  _chunkRemaining(-1), _chunkReadingTrailers(false), _drainAfterResponse(false),
 		  _t_start(now_ms()), _t_last_active(_t_start), _t_headers_start(_t_start), _t_write_start(0),
 		  _bytes_sent(0), _status_code(0), _logged(false), _reqLine("-"), _peer(peer_of(fd)),
 		  _loop(loop), _cgiState(CGI_NONE), _cgiPid(-1), _cgiIn(-1), _cgiOut(-1), _t_cgi_start(0),
@@ -37,11 +37,15 @@ Connection::~Connection() {
 }
 
 bool Connection::wantRead() const {
-	return !_closed && _wbuf.empty();
+	return !_closed && (_wbuf.empty() || _drainAfterResponse);
 }
 
 bool Connection::wantWrite() const {
 	return !_closed && !_wbuf.empty();
+}
+
+void	Connection::enableDrain() {
+	_drainAfterResponse = true;
 }
 
 void Connection::logAccess() {
@@ -211,7 +215,7 @@ bool Connection::checkTimeouts(uint64_t now_ms) {
 	return true;
 }
 
-std::string	Connection::errorPageSetup(const HttpStatusCode::e &status_code, std::string &content_type) {
+std::string Connection::errorPageSetup(const HttpStatusCode::e &status_code, std::string &content_type, bool fallback) {
 	std::string									body;
 	const std::map<int, std::string>			err_pages = _srv->getErrorPages();
 	std::map<int, std::string>::const_iterator	it = err_pages.find(statusCodeToInt(status_code));
@@ -224,7 +228,7 @@ std::string	Connection::errorPageSetup(const HttpStatusCode::e &status_code, std
 			content_type = getMimeType(error_page_path, false);
 		}
 	}
-	if (body.empty()) {
+	if (body.empty() && fallback) {
 		std::ostringstream error_body;
 		error_body	<< "<!doctype html><html><head><title>" << statusCodeToInt(status_code)
 					  << " " << getStatusMessage(status_code) << "</title></head><body><h1>"
@@ -251,7 +255,7 @@ void Connection::returnOKResponse(const std::string &body, const std::string &co
 void	Connection::returnHttpResponse(const HttpStatusCode::e &status_code) {
 	HttpResponse	resp(status_code);
 	std::string		content_type = "text/html; charset=UTF=8";
-	std::string body = errorPageSetup(status_code, content_type);
+	std::string body = errorPageSetup(status_code, content_type, true);
 	resp.setHeader("Content-Type", content_type);
 	resp.setBody(body);
 	std::ostringstream	oss;
@@ -270,7 +274,7 @@ void	Connection::returnHttpResponse(const HttpStatusCode::e &status_code, const 
 
 	if (!returnDir.url.empty())
 		resp.setHeader("Location", returnDir.url);
-	std::string body = errorPageSetup(status_code, content_type);
+	std::string body = errorPageSetup(status_code, content_type, true);
 	resp.setHeader("Content-Type", content_type);
 	resp.setBody(body);
 	std::ostringstream	oss;
@@ -285,7 +289,7 @@ void	Connection::returnHttpResponse(const HttpStatusCode::e &status_code, const 
 void	Connection::returnHttpResponse(const HttpStatusCode::e &status_code, const std::string &allow) {
 	HttpResponse	resp(status_code);
 	std::string		content_type = "text/html; charset=UTF=8";
-	std::string body = errorPageSetup(status_code, content_type);
+	std::string body = errorPageSetup(status_code, content_type, true);
 	resp.setHeader("Allow", allow);
 	resp.setHeader("Content-Type", content_type);
 	resp.setBody(body);
@@ -298,20 +302,25 @@ void	Connection::returnHttpResponse(const HttpStatusCode::e &status_code, const 
 	_t_write_start = now_ms();
 }
 
-void	Connection::returnHttpResponse(const HttpStatusCode::e &status_code, const std::string &location, const size_t sizeBytes) {
-	HttpResponse	resp(status_code);
-	std::ostringstream	body;
-	body << "Uploaded " << sizeBytes << " bytes to " << location << std::endl;
+void Connection::returnCreatedResponse(const std::string &location, const size_t sizeBytes) {
+	HttpResponse	resp(HttpStatusCode::Created);
+	std::string		content_type = "text/plain; charset=utf-8";
+	std::string		body = errorPageSetup(HttpStatusCode::Created, content_type, false);
+	if (body.empty()) {
+		std::ostringstream	bss;
+		bss << "Uploaded " << sizeBytes << " bytes to " << location << std::endl;
+		body = bss.str();
+	}
 	if (!location.empty())
 		resp.setHeader("Location", location);
-	resp.setHeader("Content-Type", "text/plain; charset=utf-8");
-	resp.setBody(body.str());
+	resp.setHeader("Content-Type", content_type);
+	resp.setBody(body);
 	std::ostringstream	oss;
-	oss << body.str().size();
+	oss << body.size();
 	resp.setHeader("Content-Length", oss.str());
 	resp.setHeader("Connection", "close");
 	_wbuf = resp.serialize();
-	_status_code = statusCodeToInt(status_code);
+	_status_code = 201;
 	_t_write_start = now_ms();
 }
 
@@ -379,17 +388,27 @@ bool Connection::processChunkedBuffered() {
 				std::string full = join_path_simple(_uploadStore, name);
 				bool existed = false; struct stat st; if (::stat(full.c_str(), &st) == 0) existed = S_ISREG(st.st_mode);
 				FILE *f = std::fopen(full.c_str(), "wb");
-				if (!f) { returnHttpResponse(HttpStatusCode::InternalServerError); return true; }
+				if (!f) {
+					returnHttpResponse(HttpStatusCode::InternalServerError);
+					return true;
+				}
 				size_t total = 0; const char *p = _bodyBuf.data(); size_t left = _bodyBuf.size();
-				while (left > 0) { size_t w = std::fwrite(p + total, 1, left, f); if (w == 0) break; total += w; left -= w; }
+				while (left > 0) {
+					size_t w = std::fwrite(p + total, 1, left, f); if (w == 0) break;
+					total += w;
+					left -= w;
+				}
 				std::fclose(f);
-				if (total != _bodyBuf.size()) { returnHttpResponse(HttpStatusCode::InternalServerError); return true; }
+				if (total != _bodyBuf.size()) {
+					returnHttpResponse(HttpStatusCode::InternalServerError);
+					return true;
+				}
 				std::string url = _matchedLocPath; if (url.empty()) url = "/"; if (url[url.size()-1] != '/') url += "/"; url += name;
 				if (existed) {
 					std::ostringstream body; body << "Uploaded " << total << " bytes to " << url << " (overwritten)\n";
 					returnOKResponse(body.str(), "text/plain; charset=utf-8");
 				} else {
-					returnHttpResponse(HttpStatusCode::Created, url, total);
+					returnCreatedResponse(url, total);
 				}
 				return true;
 			} else {
@@ -403,7 +422,10 @@ bool Connection::processChunkedBuffered() {
 		// Expecting size line?
 		if (_chunkRemaining < 0) {
 			// Protect against pathological growth without CRLF
-			if (_rbuf.size() > CHUNK_LINE_MAX && _rbuf.find("\r\n") == std::string::npos) { returnHttpResponse(HttpStatusCode::BadRequest); return true; }
+			if (_rbuf.size() > CHUNK_LINE_MAX && _rbuf.find("\r\n") == std::string::npos) {
+				returnHttpResponse(HttpStatusCode::BadRequest);
+				return true;
+			}
 			std::string::size_type crlf = _rbuf.find("\r\n");
 			if (crlf == std::string::npos) {
 				// need more data
@@ -411,27 +433,45 @@ bool Connection::processChunkedBuffered() {
 			}
 			std::string line = _rbuf.substr(0, crlf);
 			_rbuf.erase(0, crlf + 2);
-			if (line.size() > CHUNK_LINE_MAX) { returnHttpResponse(HttpStatusCode::BadRequest); return true; }
+			if (line.size() > CHUNK_LINE_MAX) {
+				returnHttpResponse(HttpStatusCode::BadRequest);
+				return true;
+			}
 			// Strip chunk extensions
 			std::string::size_type sc = line.find(';');
 			if (sc != std::string::npos) line.erase(sc);
 			// Trim spaces
-			size_t b=0; while (b < line.size() && (line[b]==' '||line[b]=='\t')) ++b;
-			size_t e=line.size(); while (e>b && (line[e-1]==' '||line[e-1]=='\t')) --e;
+			size_t b=0;
+			while (b < line.size() && (line[b]==' '||line[b]=='\t')) ++b;
+			size_t e=line.size();
+			while (e>b && (line[e-1]==' '||line[e-1]=='\t')) --e;
 			std::string hex = line.substr(b, e-b);
-			if (hex.empty()) { returnHttpResponse(HttpStatusCode::BadRequest); return true; }
+			if (hex.empty()) {
+				returnHttpResponse(HttpStatusCode::BadRequest);
+				return true;
+			}
 			// Parse hex
 			long sz = 0; for (size_t i=0; i<hex.size(); ++i) {
 				char c = hex[i]; int v;
 				if (c>='0'&&c<='9') v = c - '0';
 				else if (c>='a'&&c<='f') v = 10 + (c - 'a');
 				else if (c>='A'&&c<='F') v = 10 + (c - 'A');
-				else { returnHttpResponse(HttpStatusCode::BadRequest); return true; }
+				else {
+					returnHttpResponse(HttpStatusCode::BadRequest);
+					return true;
+				}
 				// avoid overflow
-				if (sz > 0x7FFFFFF / 16) { returnHttpResponse(HttpStatusCode::ContentTooLarge); return true; }
+				if (sz > 0x7FFFFFF / 16) {
+					enableDrain();
+					returnHttpResponse(HttpStatusCode::ContentTooLarge);
+					return true;
+				}
 				sz = sz * 16 + v;
 			}
-			if (sz < 0) { returnHttpResponse(HttpStatusCode::BadRequest); return true; }
+			if (sz < 0) {
+				returnHttpResponse(HttpStatusCode::BadRequest);
+				return true;
+			}
 			_chunkRemaining = sz;
 			if (_chunkRemaining == 0) {
 				// Last chunk: switch to trailers
@@ -448,91 +488,104 @@ bool Connection::processChunkedBuffered() {
 			return true;
 		}
 		// Enforce body size limit pre-append
-		if (_bodyLimit >= 0 && (long)(_bodyBuf.size() + _chunkRemaining) > _bodyLimit) { returnHttpResponse(HttpStatusCode::ContentTooLarge); return true; }
+		if (_bodyLimit >= 0 && (long)(_bodyBuf.size() + _chunkRemaining) > _bodyLimit) {
+			enableDrain();
+			returnHttpResponse(HttpStatusCode::ContentTooLarge);
+			return true;
+		}
 		// Append chunk data
 		_bodyBuf.append(_rbuf.data(), (size_t)_chunkRemaining);
 		_rbuf.erase(0, (size_t)_chunkRemaining);
 		// Verify CRLF
-		if (!(_rbuf.size() >= 2 && _rbuf[0] == '\r' && _rbuf[1] == '\n')) { returnHttpResponse(HttpStatusCode::BadRequest); return true; }
+		if (!(_rbuf.size() >= 2 && _rbuf[0] == '\r' && _rbuf[1] == '\n')) {
+			returnHttpResponse(HttpStatusCode::BadRequest);
+			return true;
+		}
 		_rbuf.erase(0, 2);
 		// Ready for next size line
 		_chunkRemaining = -1;
 	}
 }
 
+int	Connection::uploadAndRespond() {
+	if (_cgiEnabled) {
+		startCgiCurrent();
+		return 1;
+	}
+	// Body complete → if upload_store is configured, write to disk; else simple 200 placeholder
+	if (!_uploadStore.empty()) {
+		std::string target = normalize_target_simple(_req.target);
+		std::string suffix;
+		if (!_matchedLocPath.empty() && target.size() >= _matchedLocPath.size() && target.compare(0, _matchedLocPath.size(), _matchedLocPath) == 0) {
+			suffix = target.substr(_matchedLocPath.size());
+		} else {
+			suffix = target;
+		}
+		std::string name = base_name_only(suffix);
+		if (name.empty() || (!suffix.empty() && suffix[suffix.size()-1] == '/')) {
+			name = gen_unique_upload_name();
+		} else {
+			name = safe_filename(name);
+		}
+		std::string full = join_path_simple(_uploadStore, name);
+		bool existed = false;
+		struct stat st;
+		if (::stat(full.c_str(), &st) == 0)
+			existed = S_ISREG(st.st_mode);
+		FILE *f = std::fopen(full.c_str(), "wb");
+		if (!f) {
+			returnHttpResponse(HttpStatusCode::InternalServerError);
+			return 1;
+		}
+		size_t total = 0;
+		const char *p = _bodyBuf.data();
+		size_t left = _bodyBuf.size();
+		while (left > 0) {
+			size_t w = std::fwrite(p + total, 1, left, f);
+			if (w == 0) break;
+			total += w;
+			left -= w;
+		}
+		std::fclose(f);
+		if (total != _bodyBuf.size()) {
+			returnHttpResponse(HttpStatusCode::InternalServerError);
+			return 1;
+		}
+		// Build Location URL under the matched location path
+		std::string url = _matchedLocPath;
+		if (url.empty()) url = "/";
+		if (url[url.size()-1] != '/') url += "/";
+		url += name;
+		if (existed) {
+			std::ostringstream body;
+			body << "Uploaded " << total << " bytes to " << url << " (overwritten)\n";
+			returnOKResponse(body.str(), "text/plain; charset=utf-8");
+			return 1;
+		} else {
+			returnCreatedResponse(url, total);
+			return 1;
+		}
+	} else {
+		LOG_WARNF("post complete: upload_store is empty — returning placeholder 200 (no file write)");
+		std::cout << "[trace] post complete: upload_store is empty — returning placeholder 200 (no file write)" << std::endl;
+		std::ostringstream body;
+		body << "Received " << _bodyBuf.size() << " bytes\n";
+		returnOKResponse(body.str(), "text/plain; charset=utf-8");
+		return 1;
+	}
+}
+
 int	Connection::handleFixedBodyChunk(const char *buf, ssize_t n) {
 	size_t take = (n > _clRemaining) ? static_cast<size_t>(_clRemaining) : static_cast<size_t>(n);
 	if (_bodyLimit >= 0 && (long)(_bodyBuf.size() + take) > _bodyLimit) {
+		enableDrain();
 		returnHttpResponse(HttpStatusCode::ContentTooLarge);
 		return 1;
 	}
 	_bodyBuf.append(buf, take);
 	_clRemaining -= static_cast<long>(take);
 	if (_clRemaining == 0) {
-		if (_cgiEnabled) {
-			startCgiCurrent();
-			return 1;
-		}
-		// Body complete → if upload_store is configured, write to disk; else simple 200 placeholder
-		if (!_uploadStore.empty()) {
-			std::string target = normalize_target_simple(_req.target);
-			std::string suffix;
-			if (!_matchedLocPath.empty() && target.size() >= _matchedLocPath.size() && target.compare(0, _matchedLocPath.size(), _matchedLocPath) == 0) {
-				suffix = target.substr(_matchedLocPath.size());
-			} else {
-				suffix = target;
-			}
-			std::string name = base_name_only(suffix);
-			if (name.empty() || (!suffix.empty() && suffix[suffix.size()-1] == '/')) {
-				name = gen_unique_upload_name();
-			} else {
-				name = safe_filename(name);
-			}
-			std::string full = join_path_simple(_uploadStore, name);
-			bool existed = false;
-			struct stat st;
-			if (::stat(full.c_str(), &st) == 0)
-				existed = S_ISREG(st.st_mode);
-			FILE *f = std::fopen(full.c_str(), "wb");
-			if (!f) {
-				returnHttpResponse(HttpStatusCode::InternalServerError);
-				return 1;
-			}
-			size_t total = 0;
-			const char *p = _bodyBuf.data(); size_t left = _bodyBuf.size();
-			while (left > 0) {
-				size_t w = std::fwrite(p + total, 1, left, f);
-				if (w == 0) break;
-				total += w;
-				left -= w;
-			}
-			std::fclose(f);
-			if (total != _bodyBuf.size()) {
-				returnHttpResponse(HttpStatusCode::InternalServerError);
-				return 1;
-			}
-			// Build Location URL under the matched location path
-			std::string url = _matchedLocPath;
-			if (url.empty()) url = "/";
-			if (url[url.size()-1] != '/') url += "/";
-			url += name;
-			if (existed) {
-				std::ostringstream body;
-				body << "Uploaded " << total << " bytes to " << url << " (overwritten)\n";
-				returnOKResponse(body.str(), "text/plain; charset=utf-8");
-				return 1;
-			} else {
-				returnHttpResponse(HttpStatusCode::Created, url, total);
-				return 1;
-			}
-		} else {
-			LOG_WARNF("post complete: upload_store is empty — returning placeholder 200 (no file write)");
-			std::cout << "[trace] post complete: upload_store is empty — returning placeholder 200 (no file write)" << std::endl;
-			std::ostringstream body;
-			body << "Received " << _bodyBuf.size() << " bytes\n";
-			returnOKResponse(body.str(), "text/plain; charset=utf-8");
-			return 1;
-		}
+		return uploadAndRespond();
 	}
 	return 0;
 }
@@ -635,7 +688,8 @@ int	Connection::postMethod(const HttpRequest &req, const long effectiveLimit) {
 		_chunkReadingTrailers = false;
 		_bodyBuf.clear();
 		// Consume any already‑read bytes after headers into _rbuf and process
-		std::string pref2; _parser.takeRemaining(pref2);
+		std::string pref2;
+		_parser.takeRemaining(pref2);
 		if (!pref2.empty()) {
 			_rbuf.append(pref2);
 			if (!processChunkedBuffered()) return -1;
@@ -659,6 +713,7 @@ int	Connection::postMethod(const HttpRequest &req, const long effectiveLimit) {
 		return 1;
 	}
 	if (effectiveLimit > 0 && cl > effectiveLimit) {
+		enableDrain();
 		returnHttpResponse(HttpStatusCode::ContentTooLarge);
 		return 1;
 	}
@@ -672,6 +727,7 @@ int	Connection::postMethod(const HttpRequest &req, const long effectiveLimit) {
 	if (!pref.empty()) {
 		size_t take = (pref.size() > (size_t)_clRemaining) ? (size_t)_clRemaining : pref.size();
 		if (_bodyLimit >= 0 && (long)(_bodyBuf.size() + take) > _bodyLimit) {
+			enableDrain();
 			returnHttpResponse(HttpStatusCode::ContentTooLarge);
 			return 1;
 		}
@@ -680,67 +736,7 @@ int	Connection::postMethod(const HttpRequest &req, const long effectiveLimit) {
 		// ignore any extra bytes beyond Content-Length (no pipelining support in v0)
 	}
 	if (_clRemaining == 0) {
-		if (_cgiEnabled) {
-			startCgiCurrent();
-			return 1;
-		}
-		// Entire body arrived with headers' remaining bytes; finalize like the normal completion path
-		if (!_uploadStore.empty()) {
-			std::string target = normalize_target_simple(_req.target);
-			std::string suffix;
-			if (!_matchedLocPath.empty() && target.size() >= _matchedLocPath.size() && target.compare(0, _matchedLocPath.size(), _matchedLocPath) == 0) {
-				suffix = target.substr(_matchedLocPath.size());
-			} else {
-				suffix = target;
-			}
-			std::string name = base_name_only(suffix);
-			if (name.empty() || (!suffix.empty() && suffix[suffix.size()-1] == '/')) {
-				name = gen_unique_upload_name();
-			} else {
-				name = safe_filename(name);
-			}
-			std::string full = join_path_simple(_uploadStore, name);
-			bool existed = false;
-			struct stat st;
-			if (::stat(full.c_str(), &st) == 0)
-				existed = S_ISREG(st.st_mode);
-			FILE *f = std::fopen(full.c_str(), "wb");
-			if (!f) {
-				returnHttpResponse(HttpStatusCode::InternalServerError);
-				_t_write_start = now_ms();
-				return 1;
-			}
-			size_t total = 0;
-			const char *p = _bodyBuf.data();
-			size_t left = _bodyBuf.size();
-			while (left > 0) {
-				size_t w = std::fwrite(p + total, 1, left, f);
-				if (w == 0) break;
-				total += w;
-				left -= w;
-			}
-			std::fclose(f);
-			if (total != _bodyBuf.size()) {
-				returnHttpResponse(HttpStatusCode::InternalServerError);
-				_t_write_start = now_ms();
-				return 1;
-			}
-			std::string url = _matchedLocPath; if (url.empty()) url = "/"; if (url[url.size()-1] != '/') url += "/"; url += name;
-			if (existed) {
-				std::ostringstream body2; body2 << "Uploaded " << total << " bytes to " << url << " (overwritten)\n";
-				returnOKResponse(body2.str(), "text/plain; charset=utf-8");
-				return 1;
-			} else {
-				returnHttpResponse(HttpStatusCode::Created, url, total);
-				return 1;
-			}
-		} else {
-			LOG_WARNF("post complete(pref): upload_store is empty — returning placeholder 200 (no file write)");
-			std::cout << "[trace] post complete(pref): upload_store is empty — returning placeholder 200 (no file write)" << std::endl;
-			std::ostringstream body; body << "Received " << _bodyBuf.size() << " bytes\n";
-			returnOKResponse(body.str(), "text/plain; charset=utf-8");
-			return 1;
-		}
+		return uploadAndRespond();
 	}
 	return 0;
 }
@@ -760,6 +756,8 @@ bool Connection::onReadable() {
 			break;
 		}
 		_t_last_active = now_ms();
+
+		if (_drainAfterResponse) continue;
 
 		// If we are in body reading mode, bypass header parser entirely
 		if (_headersDone && _bodyState == BODY_FIXED && _clRemaining > 0) {
@@ -901,6 +899,10 @@ bool Connection::onWritable() {
 			_bytes_sent += (size_t)n;
 			_wbuf.erase(_wbuf.begin(), _wbuf.begin() + n);
 			if (_wbuf.empty()) {
+				if (_drainAfterResponse) {
+					if (_t_write_start == 0) _t_write_start = now_ms();
+					return true;
+				}
 				closeFd();
 				return false;
 			}

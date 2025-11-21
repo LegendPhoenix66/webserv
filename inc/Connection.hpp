@@ -78,6 +78,8 @@ private:
 	long _chunkRemaining;       // -1 when expecting size line; >=0 when reading chunk data; 0 means final-chunk seen
 	bool _chunkReadingTrailers; // true after 0-chunk, consume trailers until CRLF CRLF
 
+	bool	_drainAfterResponse;
+
 	bool processChunkedBuffered();
 
 	// timing & stats
@@ -117,6 +119,8 @@ private:
 	std::string	_matchedLocPath;
 	std::string	_uploadStore;
 
+	int	uploadAndRespond();
+
 	int		handleFixedBodyChunk(const char *buf, ssize_t n);
 	void	selectVhost(const HttpRequest &req);
 
@@ -132,12 +136,12 @@ private:
 
 	void closeFd();
 	std::string getMimeType(const std::string &path, const bool autoindex);
-	std::string	errorPageSetup(const HttpStatusCode::e &status_code, std::string &content_type);
+	std::string errorPageSetup(const HttpStatusCode::e &status_code, std::string &content_type, bool fallback);
 	void	returnHttpResponse(const HttpStatusCode::e &status_code, const Location loc);
 	void	returnHttpResponse(const HttpStatusCode::e &status_code);
 	void	returnHttpResponse(const HttpStatusCode::e &status_code, const std::string &allow);
 	void	returnHttpResponse(const HttpRequest &req, const ReturnDir &dir, const Location *loc);
-	void	returnHttpResponse(const HttpStatusCode::e &status_code, const std::string &location, const size_t sizeBytes);
+	void returnCreatedResponse(const std::string &location, const size_t sizeBytes);
 	void returnOKResponse(const std::string &body, const std::string &content_type);
 
 	bool	handle(const std::string &root, const std::vector<std::string> &indexList, const HttpRequest &req, bool isHead,
@@ -154,6 +158,8 @@ public:
 	// Desired poll events
 	bool	wantRead() const;
 	bool	wantWrite() const;
+
+	void	enableDrain();
 
 	// Event handlers return false on fatal/close
 	bool	onReadable();
