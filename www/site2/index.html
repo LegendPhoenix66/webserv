@@ -15,24 +15,20 @@
             <a href="/">Home</a> |
             <a href="/images/">Images</a> |
             <a href="/uploads/">Upload endpoint</a> |
-            <a href="/cgi-bin/">CGI</a>
+            <a href="cgi-bin/">CGI</a>
         </nav>
     </header>
 
     <main id="main-content">
         <section>
             <h2>Welcome</h2>
-            <p>This is the main index served from <code>./site2</code>. Use the controls below to upload a file or to load the location-specific index (<code>first.html</code>).</p>
+            <p>This is the main index served from <code>./site2</code>. Use the controls below to navigate the demo site.</p>
         </section>
 
         <section class="controls">
-            <h3>File Upload Test</h3>
-            <!-- Plain HTML form that submits the file via POST without JavaScript -->
-            <form id="upload-form" method="post" enctype="multipart/form-data">
-                <label for="file-input" class="button">Choose file…</label>
-                <input id="file-input" name="file" type="file">
-                <button id="do-upload" type="submit" class="button">Upload to /upload</button>
-            </form>
+            <h3>File Upload</h3>
+            <p>All uploads are handled on the dedicated upload page. Click the link below to go to <code>/upload</code> and perform uploads.</p>
+            <a href="/file-upload" class="button">Go to /uploads — Upload files</a>
 
             <h3>CGI Test</h3>
             <!-- CGI form that POSTs to the CGI endpoint -->
@@ -41,7 +37,7 @@
                 <input id="cgi-input" name="message" type="text" value="Hello CGI!" style="padding:.4rem;margin-right:.5rem;">
                 <button type="submit" class="button">Test CGI POST</button>
             </form>
-            <p style="margin-top:.5rem;"><a href="/cgi-bin/echo.py?test=123&foo=bar">Test CGI GET with query string</a></p>
+            <p style="margin-top:.5rem;"><a href="cgi-bin/echo.py?test=123&foo=bar">Test CGI GET with query string</a></p>
 
             <h3>Navigation Links</h3>
             <!-- Replace JS buttons with normal links so navigation works without scripts -->

@@ -21,7 +21,7 @@ Location	&Location::operator=(Location copy) {
 
 Location::~Location() {}
 
-Location::Location(std::vector<std::string> &conf_vec, size_t &i) : client_max_body_size(-1) {
+Location::Location(std::vector<std::string> &conf_vec, size_t &i) : autoindex(false), client_max_body_size(-1) {
 	parseDeclaration(conf_vec, i);
 
 	std::string trimmed_line;
@@ -147,12 +147,6 @@ void	Location::parseDirective(const std::string &line) {
 	}
 }
 
-bool	Location::isURL(const std::string &str) {
-	if (str.find("http://") == 0 || str.find("https://") == 0)
-		return true;
-	return false;
-}
-
 void Location::parseReturn(std::istringstream &iss, const std::string var, const std::string line)
 {
 	if (hasReturnDir())
@@ -168,20 +162,7 @@ void Location::parseReturn(std::istringstream &iss, const std::string var, const
 	if (args_str.empty())
 		return;
 
-	std::vector<std::string>	args = extractQuotedArgs(var, line);
-
-	if (args.size() > 2)
-		throw InvalidFormat("Invalid return directive.");
-
-	for (size_t j = 0; j < args.size(); j++) {
-		if (isURL(args[j])) {
-			if (!this->return_dir.url.empty())
-				throw InvalidFormat("Invalid return directive.");
-			this->return_dir.url = args[j];
-		}
-		else
-			this->return_dir.text.push_back(args[j]);
-	}
+	return_dir.url = extractSinglePath(var, args_str);
 }
 
 void	Location::parseClientSize(std::istringstream &iss) {
@@ -292,11 +273,11 @@ long long	Location::getClientMaxBodySize() const {
 }
 
 bool	Location::hasReturnDir() const {
-	if (this->return_dir.code || !this->return_dir.url.empty() || !this->return_dir.text.empty())
+	if (this->return_dir.code || !this->return_dir.url.empty())
 		return true;
 	return false;
 }
 
 bool	Location::getAutoindex() const {
-	return this->autoindex;
+	return autoindex;
 }

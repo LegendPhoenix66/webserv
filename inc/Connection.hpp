@@ -117,13 +117,21 @@ private:
 	std::string	_matchedLocPath;
 	std::string	_uploadStore;
 
+	int		handleFixedBodyChunk(const char *buf, ssize_t n);
+	void	selectVhost(const HttpRequest &req);
+
+	bool	getMethod(const HttpRequest &req, const Location *loc, std::string &effRoot,
+				 		std::vector<std::string> &effIndex, bool isHead, bool effAutoindex);
+	bool	deleteMethod(const std::string &effRoot, const HttpRequest &req);
+	int		postMethod(const HttpRequest &req, const long effectiveLimit);
+
 	void	logAccess();
 
 	bool	startCgiCurrent();
 	void	closeCgiPipes();
 
 	void closeFd();
-	std::string	getMimeType(const std::string &path);
+	std::string getMimeType(const std::string &path, const bool autoindex);
 	std::string	errorPageSetup(const HttpStatusCode::e &status_code, std::string &content_type);
 	void	returnHttpResponse(const HttpStatusCode::e &status_code, const Location loc);
 	void	returnHttpResponse(const HttpStatusCode::e &status_code);

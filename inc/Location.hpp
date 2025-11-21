@@ -9,7 +9,6 @@
 struct ReturnDir {
 	int							code;
 	std::string					url;
-	std::vector<std::string>	text;
 	ReturnDir() : code(0) {}
 };
 
@@ -49,8 +48,6 @@ private:
 	void	parseAllowedMethods(std::istringstream &iss);
 	void	parseClientSize(std::istringstream &iss);
 	void	parseReturn(std::istringstream &iss, const std::string var, const std::string line);
-
-	bool	isURL(const std::string &str);
 
 public:
 	Location();

@@ -68,7 +68,7 @@ void Connection::closeCgiPipes() {
 	if (_cgiOut != -1) { ::close(_cgiOut); _cgiOut = -1; }
 }
 
-std::string	Connection::getMimeType(const std::string &path) {
+std::string Connection::getMimeType(const std::string &path, const bool autoindex) {
 	std::string				ext;
 	std::string::size_type	dot = path.find_last_of('.');
 	if (dot == std::string::npos)
@@ -79,6 +79,7 @@ std::string	Connection::getMimeType(const std::string &path) {
 			*it = static_cast<char>(std::tolower(static_cast<unsigned char>(*it)));
 	}
 
+	if (autoindex) return "text/plain; charset=utf-8";
 	if (ext == "html" || ext == "htm") return "text/html; charset=utf-8";
 	if (ext == "css") return "text/css; charset=utf-8";
 	if (ext == "js") return "application/javascript";
@@ -157,7 +158,7 @@ bool	Connection::handle(const std::string &root, const std::vector<std::string> 
 
 	outResp.setStatus(HttpStatusCode::OK);
 	outResp.setHeader("Connection", "close");
-	outResp.setHeader("Content-Type", getMimeType(path));
+	outResp.setHeader("Content-Type", getMimeType(path, autoindex));
 	{
 		std::ostringstream oss; oss << contentLen;
 		outResp.setHeader("Content-Length", oss.str());
@@ -220,7 +221,7 @@ std::string	Connection::errorPageSetup(const HttpStatusCode::e &status_code, std
 		read_file(error_page_path, error_body_content);
 		if (!error_body_content.empty()) {
 			read_file(error_page_path, body);
-			content_type = getMimeType(error_page_path);
+			content_type = getMimeType(error_page_path, false);
 		}
 	}
 	if (body.empty()) {
@@ -304,6 +305,7 @@ void	Connection::returnHttpResponse(const HttpStatusCode::e &status_code, const 
 	if (!location.empty())
 		resp.setHeader("Location", location);
 	resp.setHeader("Content-Type", "text/plain; charset=utf-8");
+	resp.setBody(body.str());
 	std::ostringstream	oss;
 	oss << body.str().size();
 	resp.setHeader("Content-Length", oss.str());
@@ -458,6 +460,291 @@ bool Connection::processChunkedBuffered() {
 	}
 }
 
+int	Connection::handleFixedBodyChunk(const char *buf, ssize_t n) {
+	size_t take = (n > _clRemaining) ? static_cast<size_t>(_clRemaining) : static_cast<size_t>(n);
+	if (_bodyLimit >= 0 && (long)(_bodyBuf.size() + take) > _bodyLimit) {
+		returnHttpResponse(HttpStatusCode::ContentTooLarge);
+		return 1;
+	}
+	_bodyBuf.append(buf, take);
+	_clRemaining -= static_cast<long>(take);
+	if (_clRemaining == 0) {
+		if (_cgiEnabled) {
+			startCgiCurrent();
+			return 1;
+		}
+		// Body complete → if upload_store is configured, write to disk; else simple 200 placeholder
+		if (!_uploadStore.empty()) {
+			std::string target = normalize_target_simple(_req.target);
+			std::string suffix;
+			if (!_matchedLocPath.empty() && target.size() >= _matchedLocPath.size() && target.compare(0, _matchedLocPath.size(), _matchedLocPath) == 0) {
+				suffix = target.substr(_matchedLocPath.size());
+			} else {
+				suffix = target;
+			}
+			std::string name = base_name_only(suffix);
+			if (name.empty() || (!suffix.empty() && suffix[suffix.size()-1] == '/')) {
+				name = gen_unique_upload_name();
+			} else {
+				name = safe_filename(name);
+			}
+			std::string full = join_path_simple(_uploadStore, name);
+			bool existed = false;
+			struct stat st;
+			if (::stat(full.c_str(), &st) == 0)
+				existed = S_ISREG(st.st_mode);
+			FILE *f = std::fopen(full.c_str(), "wb");
+			if (!f) {
+				returnHttpResponse(HttpStatusCode::InternalServerError);
+				return 1;
+			}
+			size_t total = 0;
+			const char *p = _bodyBuf.data(); size_t left = _bodyBuf.size();
+			while (left > 0) {
+				size_t w = std::fwrite(p + total, 1, left, f);
+				if (w == 0) break;
+				total += w;
+				left -= w;
+			}
+			std::fclose(f);
+			if (total != _bodyBuf.size()) {
+				returnHttpResponse(HttpStatusCode::InternalServerError);
+				return 1;
+			}
+			// Build Location URL under the matched location path
+			std::string url = _matchedLocPath;
+			if (url.empty()) url = "/";
+			if (url[url.size()-1] != '/') url += "/";
+			url += name;
+			if (existed) {
+				std::ostringstream body;
+				body << "Uploaded " << total << " bytes to " << url << " (overwritten)\n";
+				returnOKResponse(body.str(), "text/plain; charset=utf-8");
+				return 1;
+			} else {
+				returnHttpResponse(HttpStatusCode::Created, url, total);
+				return 1;
+			}
+		} else {
+			LOG_WARNF("post complete: upload_store is empty — returning placeholder 200 (no file write)");
+			std::cout << "[trace] post complete: upload_store is empty — returning placeholder 200 (no file write)" << std::endl;
+			std::ostringstream body;
+			body << "Received " << _bodyBuf.size() << " bytes\n";
+			returnOKResponse(body.str(), "text/plain; charset=utf-8");
+			return 1;
+		}
+	}
+	return 0;
+}
+
+void	Connection::selectVhost(const HttpRequest &req) {
+	// Vhost selection based on Host header (case-insensitive, strip port)
+	std::string host = find_header_icase(req.headers, "Host");
+	if (!host.empty()) {
+		std::string name = to_lower_copy(strip_port(host));
+		for (size_t i = 0; i < _group.size(); ++i) {
+			const ServerConfig *sc = _group[i];
+			if (!sc) continue;
+			for (size_t j = 0; j < sc->getServerName().size(); ++j) {
+				if (to_lower_copy(sc->getServerName()[j]) == name) {
+					if (sc != _srv) {
+						_srv = sc;
+						_root = _srv->getRoot();
+						_index = _srv->getIndex();
+						_vhostName = sc->getServerName()[j];
+					}
+					return;
+				}
+			}
+		}
+	}
+}
+
+bool	Connection::deleteMethod(const std::string &effRoot, const HttpRequest &req) {
+	// Determine base directory for deletion
+	std::string base = !_uploadStore.empty() ? _uploadStore : effRoot;
+	std::string target = normalize_target_simple(req.target);
+	std::string suffix;
+	if (!_matchedLocPath.empty() && target.size() >= _matchedLocPath.size() && target.compare(0, _matchedLocPath.size(), _matchedLocPath) == 0) {
+		suffix = target.substr(_matchedLocPath.size());
+	} else {
+		suffix = target;
+	}
+	std::string name = base_name_only(suffix);
+	if (name.empty()) {
+		returnHttpResponse(HttpStatusCode::NotFound);
+		return true;
+	}
+	std::string full = join_path_simple(base, name);
+	LOG_INFOF("delete: target path %s", full.c_str());
+	std::cout << "[trace] delete: target path " << full << std::endl;
+	struct stat st;
+	if (::stat(full.c_str(), &st) != 0 || !S_ISREG(st.st_mode)) {
+		returnHttpResponse(HttpStatusCode::NotFound);
+		return true;
+	}
+	if (::unlink(full.c_str()) == 0) {
+		returnHttpResponse(HttpStatusCode::NoContent);
+	} else {
+		returnHttpResponse(HttpStatusCode::InternalServerError);
+	}
+	return true;
+}
+
+bool	Connection::getMethod(const HttpRequest &req, const Location *loc, std::string &effRoot,
+							  std::vector<std::string> &effIndex, bool isHead, bool effAutoindex) {
+	HttpResponse resp;
+	std::string err;
+	// If a location overrides root, strip the matched prefix from the URL before resolving
+	HttpRequest adj = req;
+	if (loc && !loc->getRoot().empty() && !loc->getPath().empty()) {
+		std::string norm = normalize_target_simple(req.target);
+		std::string	lpath = loc->getPath();
+		if (!lpath.empty() && lpath[lpath.size() - 1] != '/')
+			lpath += '/';
+		if (norm.size() >= lpath.size() && norm.compare(0, lpath.size(), lpath) == 0) {
+			std::string suffix = norm.substr(lpath.size());
+			if (suffix.empty()) suffix = "/";
+			if (suffix[0] != '/') suffix = std::string("/") + suffix;
+			adj.target = suffix;
+			LOG_INFOF("static resolve: stripped prefix '%s' → '%s' under root '%s'", lpath.c_str(), adj.target.c_str(), effRoot.c_str());
+			std::cout << "[trace] static resolve: strip '" << lpath << "' → '" << adj.target << "' under root '" << effRoot << "'" << std::endl;
+		}
+	}
+	if (handle(effRoot, effIndex, adj, isHead, effAutoindex, resp, loc, err)) {
+		_wbuf = resp.serialize();
+		_status_code = 200;
+		_t_write_start = now_ms();
+	} else {
+		// Treat unexpected read/autoindex generation failures as 500; missing files as 404
+		if (err.find("read error:") == 0 || err == "autoindex generation failed") {
+			returnHttpResponse(HttpStatusCode::InternalServerError);
+		} else {
+			returnHttpResponse(HttpStatusCode::NotFound);
+		}
+	}
+	return true; // ready to write
+}
+
+int	Connection::postMethod(const HttpRequest &req, const long effectiveLimit) {
+	std::string te = find_header_icase(req.headers, "Transfer-Encoding");
+	if (!te.empty() && to_lower_copy(te).find("chunked") != std::string::npos) {
+		_bodyLimit = effectiveLimit;
+		_bodyState = BODY_CHUNKED;
+		_chunkRemaining = -1; // expect size line first
+		_chunkReadingTrailers = false;
+		_bodyBuf.clear();
+		// Consume any already‑read bytes after headers into _rbuf and process
+		std::string pref2; _parser.takeRemaining(pref2);
+		if (!pref2.empty()) {
+			_rbuf.append(pref2);
+			if (!processChunkedBuffered()) return -1;
+			if (!_wbuf.empty()) {
+				_t_write_start = now_ms();
+				return 1;
+			}
+		}
+		// Continue reading more chunked data
+		return 0;
+	}
+	std::string clh = find_header_icase(req.headers, "Content-Length");
+	if (clh.empty()) {
+		returnHttpResponse(HttpStatusCode::LengthRequired);
+		return 1;
+	}
+	long cl = 0;
+	{ std::istringstream iss(clh); iss >> cl; }
+	if (cl < 0) {
+		returnHttpResponse(HttpStatusCode::BadRequest);
+		return 1;
+	}
+	if (effectiveLimit > 0 && cl > effectiveLimit) {
+		returnHttpResponse(HttpStatusCode::ContentTooLarge);
+		return 1;
+	}
+	_bodyLimit = effectiveLimit;
+	_bodyState = BODY_FIXED;
+	_clRemaining = cl;
+	_bodyBuf.clear();
+	// Consume any bytes already buffered after headers
+	std::string pref;
+	_parser.takeRemaining(pref);
+	if (!pref.empty()) {
+		size_t take = (pref.size() > (size_t)_clRemaining) ? (size_t)_clRemaining : pref.size();
+		if (_bodyLimit >= 0 && (long)(_bodyBuf.size() + take) > _bodyLimit) {
+			returnHttpResponse(HttpStatusCode::ContentTooLarge);
+			return 1;
+		}
+		_bodyBuf.append(pref.data(), take);
+		_clRemaining -= static_cast<long>(take);
+		// ignore any extra bytes beyond Content-Length (no pipelining support in v0)
+	}
+	if (_clRemaining == 0) {
+		if (_cgiEnabled) {
+			startCgiCurrent();
+			return 1;
+		}
+		// Entire body arrived with headers' remaining bytes; finalize like the normal completion path
+		if (!_uploadStore.empty()) {
+			std::string target = normalize_target_simple(_req.target);
+			std::string suffix;
+			if (!_matchedLocPath.empty() && target.size() >= _matchedLocPath.size() && target.compare(0, _matchedLocPath.size(), _matchedLocPath) == 0) {
+				suffix = target.substr(_matchedLocPath.size());
+			} else {
+				suffix = target;
+			}
+			std::string name = base_name_only(suffix);
+			if (name.empty() || (!suffix.empty() && suffix[suffix.size()-1] == '/')) {
+				name = gen_unique_upload_name();
+			} else {
+				name = safe_filename(name);
+			}
+			std::string full = join_path_simple(_uploadStore, name);
+			bool existed = false;
+			struct stat st;
+			if (::stat(full.c_str(), &st) == 0)
+				existed = S_ISREG(st.st_mode);
+			FILE *f = std::fopen(full.c_str(), "wb");
+			if (!f) {
+				returnHttpResponse(HttpStatusCode::InternalServerError);
+				_t_write_start = now_ms();
+				return 1;
+			}
+			size_t total = 0;
+			const char *p = _bodyBuf.data();
+			size_t left = _bodyBuf.size();
+			while (left > 0) {
+				size_t w = std::fwrite(p + total, 1, left, f);
+				if (w == 0) break;
+				total += w;
+				left -= w;
+			}
+			std::fclose(f);
+			if (total != _bodyBuf.size()) {
+				returnHttpResponse(HttpStatusCode::InternalServerError);
+				_t_write_start = now_ms();
+				return 1;
+			}
+			std::string url = _matchedLocPath; if (url.empty()) url = "/"; if (url[url.size()-1] != '/') url += "/"; url += name;
+			if (existed) {
+				std::ostringstream body2; body2 << "Uploaded " << total << " bytes to " << url << " (overwritten)\n";
+				returnOKResponse(body2.str(), "text/plain; charset=utf-8");
+				return 1;
+			} else {
+				returnHttpResponse(HttpStatusCode::Created, url, total);
+				return 1;
+			}
+		} else {
+			LOG_WARNF("post complete(pref): upload_store is empty — returning placeholder 200 (no file write)");
+			std::cout << "[trace] post complete(pref): upload_store is empty — returning placeholder 200 (no file write)" << std::endl;
+			std::ostringstream body; body << "Received " << _bodyBuf.size() << " bytes\n";
+			returnOKResponse(body.str(), "text/plain; charset=utf-8");
+			return 1;
+		}
+	}
+	return 0;
+}
+
 bool Connection::onReadable() {
 	if (_closed) return false;
 	char buf[4096];
@@ -476,75 +763,9 @@ bool Connection::onReadable() {
 
 		// If we are in body reading mode, bypass header parser entirely
 		if (_headersDone && _bodyState == BODY_FIXED && _clRemaining > 0) {
-			size_t take = (n > _clRemaining) ? static_cast<size_t>(_clRemaining) : static_cast<size_t>(n);
-			if (_bodyLimit >= 0 && (long)(_bodyBuf.size() + take) > _bodyLimit) {
-				returnHttpResponse(HttpStatusCode::ContentTooLarge);
-				return true;
-			}
-			_bodyBuf.append(buf, take);
-			_clRemaining -= static_cast<long>(take);
-			if (_clRemaining == 0) {
-				if (_cgiEnabled) {
-					startCgiCurrent();
-					return true;
-				}
-				// Body complete → if upload_store is configured, write to disk; else simple 200 placeholder
-				if (!_uploadStore.empty()) {
-					std::string target = normalize_target_simple(_req.target);
-					std::string suffix;
-					if (!_matchedLocPath.empty() && target.size() >= _matchedLocPath.size() && target.compare(0, _matchedLocPath.size(), _matchedLocPath) == 0) {
-						suffix = target.substr(_matchedLocPath.size());
-					} else {
-						suffix = target;
-					}
-					std::string name = base_name_only(suffix);
-					if (name.empty() || (!suffix.empty() && suffix[suffix.size()-1] == '/')) {
-						name = gen_unique_upload_name();
-					} else {
-						name = safe_filename(name);
-					}
-					std::string full = join_path_simple(_uploadStore, name);
-					bool existed = false; struct stat st; if (::stat(full.c_str(), &st) == 0) existed = S_ISREG(st.st_mode);
-					FILE *f = std::fopen(full.c_str(), "wb");
-					if (!f) {
-						returnHttpResponse(HttpStatusCode::InternalServerError);
-						return true;
-					}
-					size_t total = 0;
-					const char *p = _bodyBuf.data(); size_t left = _bodyBuf.size();
-					while (left > 0) {
-						size_t w = std::fwrite(p + total, 1, left, f);
-						if (w == 0) { break; }
-						total += w; left -= w;
-					}
-					std::fclose(f);
-					if (total != _bodyBuf.size()) {
-						returnHttpResponse(HttpStatusCode::InternalServerError);
-						return true;
-					}
-					// Build Location URL under the matched location path
-					std::string url = _matchedLocPath;
-					if (url.empty()) url = "/";
-					if (url[url.size()-1] != '/') url += "/";
-					url += name;
-					if (existed) {
-						std::ostringstream body;
-						body << "Uploaded " << total << " bytes to " << url << " (overwritten)\n";
-						returnOKResponse(body.str(), "text/plain; charset=utf-8");
-						return true;
-					} else {
-						returnHttpResponse(HttpStatusCode::Created, url, total);
-						return true;
-					}
-				} else {
-					LOG_WARNF("post complete: upload_store is empty — returning placeholder 200 (no file write)");
-					std::cout << "[trace] post complete: upload_store is empty — returning placeholder 200 (no file write)" << std::endl;
-					std::ostringstream body;
-					body << "Received " << _bodyBuf.size() << " bytes\n";
-					returnOKResponse(body.str(), "text/plain; charset=utf-8");
-					return true;
-				}
-			}
+			int	hr = handleFixedBodyChunk(buf, n);
+			if (hr == 1) return true;
+			if (hr == -1) return false;
 			// If peer sent more than Content-Length, ignore the extra bytes for now
 			continue;
 		}
@@ -578,28 +799,7 @@ bool Connection::onReadable() {
 			const HttpRequest &req = _req;
 			_headersDone = true;
 			_reqLine = req.method + std::string(" ") + req.target + std::string(" ") + req.version;
-
-			// Vhost selection based on Host header (case-insensitive, strip port)
-			std::string host = find_header_icase(req.headers, "Host");
-			if (!host.empty()) {
-				std::string name = to_lower_copy(strip_port(host));
-				for (size_t i = 0; i < _group.size(); ++i) {
-					const ServerConfig *sc = _group[i];
-					if (!sc) continue;
-					for (size_t j = 0; j < sc->getServerName().size(); ++j) {
-						if (to_lower_copy(sc->getServerName()[j]) == name) {
-							if (sc != _srv) {
-								_srv = sc;
-								_root = _srv->getRoot();
-								_index = _srv->getIndex();
-								_vhostName = sc->getServerName()[j];
-							}
-							goto vhost_done;
-						}
-					}
-				}
-			}
-			vhost_done:
+			selectVhost(req);
 
 			// (Re)build router if server changed
 			if (_srv && _routerSrv != _srv) { _router.build(*_srv); _routerSrv = _srv; }
@@ -669,156 +869,20 @@ bool Connection::onReadable() {
 			_effRootForRequest = effRoot;
 
 			if (isDelete) {
-				// Determine base directory for deletion
-				std::string base = !_uploadStore.empty() ? _uploadStore : effRoot;
-				std::string target = normalize_target_simple(req.target);
-				std::string suffix;
-				if (!_matchedLocPath.empty() && target.size() >= _matchedLocPath.size() && target.compare(0, _matchedLocPath.size(), _matchedLocPath) == 0) {
-					suffix = target.substr(_matchedLocPath.size());
-				} else {
-					suffix = target;
-				}
-				std::string name = base_name_only(suffix);
-				if (name.empty()) {
-					returnHttpResponse(HttpStatusCode::NotFound);
-					return true;
-				}
-				std::string full = join_path_simple(base, name);
-				LOG_INFOF("delete: target path %s", full.c_str());
-				std::cout << "[trace] delete: target path " << full << std::endl;
-				struct stat st;
-				if (::stat(full.c_str(), &st) != 0 || !S_ISREG(st.st_mode)) {
-					returnHttpResponse(HttpStatusCode::NotFound);
-					return true;
-				}
-				if (::unlink(full.c_str()) == 0) {
-					returnHttpResponse(HttpStatusCode::NoContent);
-				} else {
-					returnHttpResponse(HttpStatusCode::InternalServerError);
-				}
-				return true;
+				return deleteMethod(effRoot, req);
 			}
 			if (_cgiEnabled && isGet) {
 				startCgiCurrent();
 				return true;
 			}
 			if (isGet || isHead) {
-				HttpResponse resp;
-				std::string err;
-				// If a location overrides root, strip the matched prefix from the URL before resolving
-				HttpRequest adj = req;
-				if (loc && !loc->getRoot().empty() && !loc->getPath().empty()) {
-					std::string norm = normalize_target_simple(req.target);
-					std::string	lpath = loc->getPath();
-					if (!lpath.empty() && lpath[lpath.size() - 1] != '/')
-						lpath += '/';
-					if (norm.size() >= lpath.size() && norm.compare(0, lpath.size(), lpath) == 0) {
-						std::string suffix = norm.substr(lpath.size());
-						if (suffix.empty()) suffix = "/";
-						if (suffix[0] != '/') suffix = std::string("/") + suffix;
-						adj.target = suffix;
-						LOG_INFOF("static resolve: stripped prefix '%s' → '%s' under root '%s'", lpath.c_str(), adj.target.c_str(), effRoot.c_str());
-						std::cout << "[trace] static resolve: strip '" << lpath << "' → '" << adj.target << "' under root '" << effRoot << "'" << std::endl;
-					}
-				}
-				if (handle(effRoot, effIndex, adj, isHead, effAutoindex, resp, loc, err)) {
-					_wbuf = resp.serialize();
-					_status_code = 200;
-					_t_write_start = now_ms();
-				} else {
-					// Treat unexpected read/autoindex generation failures as 500; missing files as 404
-					if (err.find("read error:") == 0 || err == "autoindex generation failed") {
-						returnHttpResponse(HttpStatusCode::InternalServerError);
-					} else {
-						returnHttpResponse(HttpStatusCode::NotFound);
-					}
-				}
-				return true; // ready to write
+				return getMethod(req, loc, effRoot, effIndex, isHead, effAutoindex);
 			}
-
 			// POST path — initialize body machine (fixed-length only for now)
 			if (isPost) {
-				std::string te = find_header_icase(req.headers, "Transfer-Encoding");
-				if (!te.empty() && to_lower_copy(te).find("chunked") != std::string::npos) {
-					long effectiveLimit2 = effectiveLimit;
-					_bodyLimit = effectiveLimit2;
-					_bodyState = BODY_CHUNKED;
-					_chunkRemaining = -1; // expect size line first
-					_chunkReadingTrailers = false;
-					_bodyBuf.clear();
-					// Consume any already‑read bytes after headers into _rbuf and process
-					std::string pref2; _parser.takeRemaining(pref2);
-					if (!pref2.empty()) { _rbuf.append(pref2); if (!processChunkedBuffered()) return false; if (!_wbuf.empty()) { _t_write_start = now_ms(); return true; } }
-					// Continue reading more chunked data
-					continue;
-				}
-				std::string clh = find_header_icase(req.headers, "Content-Length");
-				if (clh.empty()) { returnHttpResponse(HttpStatusCode::LengthRequired); return true; }
-				long cl = 0; { std::istringstream iss(clh); iss >> cl; }
-				if (cl < 0) { returnHttpResponse(HttpStatusCode::BadRequest); return true; }
-				if (effectiveLimit > 0 && cl > effectiveLimit) { returnHttpResponse(HttpStatusCode::ContentTooLarge); return true; }
-				_bodyLimit = effectiveLimit;
-				_bodyState = BODY_FIXED;
-				_clRemaining = cl;
-				_bodyBuf.clear();
-				// Consume any bytes already buffered after headers
-				std::string pref;
-				_parser.takeRemaining(pref);
-				if (!pref.empty()) {
-					size_t take = (pref.size() > (size_t)_clRemaining) ? (size_t)_clRemaining : pref.size();
-					if (_bodyLimit >= 0 && (long)(_bodyBuf.size() + take) > _bodyLimit) { returnHttpResponse(HttpStatusCode::ContentTooLarge); return true; }
-					_bodyBuf.append(pref.data(), take);
-					_clRemaining -= static_cast<long>(take);
-					// ignore any extra bytes beyond Content-Length (no pipelining support in v0)
-				}
-				if (_clRemaining == 0) {
-					if (_cgiEnabled) { startCgiCurrent(); return true; }
-					// Entire body arrived with headers' remaining bytes; finalize like the normal completion path
-					if (!_uploadStore.empty()) {
-						std::string target = normalize_target_simple(_req.target);
-						std::string suffix;
-						if (!_matchedLocPath.empty() && target.size() >= _matchedLocPath.size() && target.compare(0, _matchedLocPath.size(), _matchedLocPath) == 0) {
-							suffix = target.substr(_matchedLocPath.size());
-						} else {
-							suffix = target;
-						}
-						std::string name = base_name_only(suffix);
-						if (name.empty() || (!suffix.empty() && suffix[suffix.size()-1] == '/')) {
-							name = gen_unique_upload_name();
-						} else {
-							name = safe_filename(name);
-						}
-						std::string full = join_path_simple(_uploadStore, name);
-						bool existed = false; struct stat st; if (::stat(full.c_str(), &st) == 0) existed = S_ISREG(st.st_mode);
-						FILE *f = std::fopen(full.c_str(), "wb");
-						if (!f) {
-							returnHttpResponse(HttpStatusCode::InternalServerError);
-							_t_write_start = now_ms();
-							return true;
-						}
-						size_t total = 0; const char *p = _bodyBuf.data(); size_t left = _bodyBuf.size();
-						while (left > 0) { size_t w = std::fwrite(p + total, 1, left, f); if (w == 0) break; total += w; left -= w; }
-						std::fclose(f);
-						if (total != _bodyBuf.size()) {
-							returnHttpResponse(HttpStatusCode::InternalServerError); _t_write_start = now_ms(); return true;
-						}
-						std::string url = _matchedLocPath; if (url.empty()) url = "/"; if (url[url.size()-1] != '/') url += "/"; url += name;
-						if (existed) {
-							std::ostringstream body2; body2 << "Uploaded " << total << " bytes to " << url << " (overwritten)\n";
-							returnOKResponse(body2.str(), "text/plain; charset=utf-8");
-							return true;
-						} else {
-							returnHttpResponse(HttpStatusCode::Created, url, total); return true;
-						}
-					} else {
-						LOG_WARNF("post complete(pref): upload_store is empty — returning placeholder 200 (no file write)");
-						std::cout << "[trace] post complete(pref): upload_store is empty — returning placeholder 200 (no file write)" << std::endl;
-						std::ostringstream body; body << "Received " << _bodyBuf.size() << " bytes\n";
-						returnOKResponse(body.str(), "text/plain; charset=utf-8");
-						return true;
-					}
-				}
-				// otherwise continue reading loop to collect the remaining body
+				int	hr = postMethod(req, effectiveLimit);
+				if (hr == 1) return true;
+				if (hr == -1) return false;
 				continue;
 			}
 		}

@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>site2 — Upload</title>
+  <link rel="stylesheet" href="styles/shared.css">
+  <link rel="stylesheet" href="styles/style.css">
+</head>
+<body>
+  <header>
+    <h1>Upload a file</h1>
+    <nav>
+      <a href="/">Home</a> |
+      <a href="first.html">Location index</a> |
+      <a href="index.html">Main index</a> |
+      <a href="/cgi-bin/">CGI</a>
+    </nav>
+  </header>
+
+  <main>
+    <section class="container">
+      <h2>Upload a file to the server</h2>
+      <p>Use the form below to upload a file to <code>/upload</code>. This page uses a plain HTML form with <code>multipart/form-data</code> so browsers will perform a standard POST without any JavaScript. If your browser supports JavaScript, you can still use the form normally — no client-side script is required.</p>
+
+      <form id="upload-form" method="post" enctype="multipart/form-data">
+        <label for="file-input" class="button">Choose file…</label>
+        <input id="file-input" name="file" type="file">
+        <button id="submit-button" type="submit" class="button">Upload</button>
+      </form>
+
+      <div id="file-info" class="file-info" aria-live="polite">Select a file then click Upload — the browser will send it to <code>/upload</code>.</div>
+      <div id="status" class="status" aria-live="polite"></div>
+    </section>
+
+    <section class="container">
+      <h3>Quick links</h3>
+      <ul>
+        <li><a href="/uploads/">Browse uploads</a></li>
+        <li><a href="first.html">Back to location index</a></li>
+      </ul>
+    </section>
+  </main>
+
+  <footer>
+    <small>site2 — upload page</small>
+  </footer>
+
+  <!-- No client-side script: uploads are handled by a standard POST to /upload -->
+</body>
+</html>
