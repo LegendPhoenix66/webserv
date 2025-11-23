@@ -239,8 +239,9 @@ std::string Connection::errorPageSetup(const HttpStatusCode::e &status_code, std
 	return body;
 }
 
-void Connection::returnOKResponse(const std::string &body, const std::string &content_type) {
+void Connection::returnOKResponse(std::string body, std::string content_type) {
 	HttpResponse	resp(HttpStatusCode::OK);
+	if (body.empty()) body = errorPageSetup(HttpStatusCode::OK, content_type, false);
 	resp.setHeader("Content-Type", content_type);
 	if (!body.empty()) resp.setBody(body);
 	std::ostringstream	oss;
@@ -507,6 +508,114 @@ bool Connection::processChunkedBuffered() {
 	}
 }
 
+bool	Connection::saveMultipart(const std::string &content_type, std::string &outName, std::string &err, bool &existed) {
+	std::string::size_type	bpos = content_type.find("boundary=");
+	if (bpos == std::string::npos) {
+		err = "no boundary";
+		return false;
+	}
+	std::string	boundary = content_type.substr(bpos + 9);
+	if (!boundary.empty() && boundary[0] == '"') {
+		if (boundary.size() >= 2 && boundary[boundary.size() - 1] == '"')
+			boundary = boundary.substr(1, boundary.size() - 2);
+	}
+	if (boundary.empty()) {
+		err = "empty boundary";
+		return false;
+	}
+	std::string	bmark = std::string("--") + boundary;
+	std::string::size_type pos = 0;
+	for (;;) {
+		std::string::size_type part_start = _bodyBuf.find(bmark, pos);
+		if (part_start == std::string::npos) break;
+		part_start += bmark.size();
+		if (part_start + 2 <= _bodyBuf.size() && _bodyBuf[part_start] == '\r' && _bodyBuf[part_start + 1] == '\n') part_start += 2;
+		std::string::size_type headers_end = _bodyBuf.find("\r\n\r\n", part_start);
+		if (headers_end == std::string::npos) break;
+		std::string headers = _bodyBuf.substr(part_start, headers_end - part_start);
+		std::string::size_type content_start = headers_end + 4;
+
+		std::string::size_type next_b = _bodyBuf.find("\r\n" + bmark, content_start);
+		if (next_b == std::string::npos) {
+			next_b = _bodyBuf.find(bmark, content_start);
+			if (next_b == std::string::npos) next_b = _bodyBuf.size();
+		}
+
+		std::string::size_type cdpos = headers.find("Content-Disposition:");
+		if (cdpos == std::string::npos) {
+			pos = next_b;
+			continue;
+		}
+		std::string::size_type fnpos = headers.find("filename=");
+		if (fnpos == std::string::npos) {
+			pos = next_b;
+			continue;
+		}
+		std::string::size_type qstart = headers.find('"', fnpos);
+		std::string::size_type qend = std::string::npos;
+		if (qstart != std::string::npos) {
+			qend = headers.find('"', qstart + 1);
+		}
+		std::string filename;
+		if (qstart != std::string::npos && qend != std::string::npos && qend > qstart) {
+			filename = headers.substr(qstart + 1, qend - (qstart + 1));
+		} else {
+			std::string::size_type p = headers.find(';', fnpos);
+			if (p == std::string::npos) p = headers.size();
+			std::string tok = headers.substr(fnpos + 9, p - (fnpos + 9));
+			size_t b = 0;
+			while (b < tok.size() && (tok[b] == ' ' || tok[b] == '\t')) ++b;
+			size_t e = tok.size();
+			while (e > b && (tok[e - 1] == ' ' || tok[e - 1] == '\t')) --e;
+			filename = tok.substr(b, e - b);
+		}
+
+		if (filename.empty()) {
+			pos = next_b;
+			continue;
+		}
+
+		std::string content;
+		if (next_b > content_start) content = _bodyBuf.substr(content_start, next_b - content_start);
+		if (content.size() >= 2 && content[content.size() - 2] == '\r' && content[content.size() - 1] == '\n')
+			content.erase(content.size() - 2);
+
+		std::string safe;
+		safe.reserve(filename.size());
+		for (size_t i = 0; i < filename.size(); i++) {
+			char c = filename[i];
+			bool ok = (std::isalnum(c) || c == '.' || c == '_' || c == '-');
+			safe.push_back(ok ? c : '_');
+		}
+		if (safe.empty()) safe = "upload.bin";
+
+		std::string fullpath = _uploadStore;
+		if (!fullpath.empty() && fullpath[fullpath.size()-1] != '/') fullpath += "/";
+		fullpath += safe;
+
+		struct stat	pst;
+		if (::stat(fullpath.c_str(), &pst) == 0) existed = S_ISREG(pst.st_mode);
+
+		FILE *f = std::fopen(fullpath.c_str(), "wb");
+		if (!f) {
+			err = std::string("fopen failed: ") + std::strerror(errno);
+			return false;
+		}
+		size_t wrote = 0;
+		if (!content.empty())
+			wrote = std::fwrite(content.data(), 1, content.size(), f);
+		std::fclose(f);
+		if (wrote != content.size()) {
+			err = "write failed";
+			return false;
+		}
+		outName = safe;
+		return true;
+	}
+	err = "no file part found";
+	return false;
+}
+
 int	Connection::uploadAndRespond() {
 	if (_cgiEnabled) {
 		startCgiCurrent();
@@ -514,56 +623,92 @@ int	Connection::uploadAndRespond() {
 	}
 	// Body complete → if upload_store is configured, write to disk; else simple 200 placeholder
 	if (!_uploadStore.empty()) {
-		std::string target = normalize_target_simple(_req.target);
-		std::string suffix;
-		if (!_matchedLocPath.empty() && target.size() >= _matchedLocPath.size() && target.compare(0, _matchedLocPath.size(), _matchedLocPath) == 0) {
-			suffix = target.substr(_matchedLocPath.size());
-		} else {
-			suffix = target;
+		std::string	ctype = find_header_icase(_req.headers, "Content-Type");
+		std::string	name;
+		bool	multi = false;
+		bool	existed = false;
+		if (!ctype.empty() && to_lower_copy(ctype).find("multipart/form-data") != std::string::npos) {
+			std::string	err;
+			if (saveMultipart(ctype, name, err, existed)) {
+				multi = true;
+			}
+			else {
+				LOG_WARNF("multipart save failed: %s", err.c_str());
+				returnHttpResponse(HttpStatusCode::InternalServerError);
+				return 1;
+			}
 		}
-		std::string name = base_name_only(suffix);
-		if (name.empty() || (!suffix.empty() && suffix[suffix.size()-1] == '/')) {
-			name = gen_unique_upload_name();
-		} else {
-			name = safe_filename(name);
+		if (!multi) {
+			std::string target = normalize_target_simple(_req.target);
+			std::string suffix;
+			if (!_matchedLocPath.empty() && target.size() >= _matchedLocPath.size() && target.compare(0, _matchedLocPath.size(), _matchedLocPath) == 0) {
+				suffix = target.substr(_matchedLocPath.size());
+			} else {
+				suffix = target;
+			}
+			name = base_name_only(suffix);
+			if (name.empty() || (!suffix.empty() && suffix[suffix.size()-1] == '/')) {
+				name = gen_unique_upload_name();
+			} else {
+				name = safe_filename(name);
+			}
+			std::string full = join_path_simple(_uploadStore, name);
+			struct stat st;
+			if (::stat(full.c_str(), &st) == 0)
+				existed = S_ISREG(st.st_mode);
+			FILE *f = std::fopen(full.c_str(), "wb");
+			if (!f) {
+				returnHttpResponse(HttpStatusCode::InternalServerError);
+				return 1;
+			}
+			size_t total = 0;
+			const char *p = _bodyBuf.data();
+			size_t left = _bodyBuf.size();
+			while (left > 0) {
+				size_t w = std::fwrite(p + total, 1, left, f);
+				if (w == 0) break;
+				total += w;
+				left -= w;
+			}
+			std::fclose(f);
+			if (total != _bodyBuf.size()) {
+				returnHttpResponse(HttpStatusCode::InternalServerError);
+				return 1;
+			}
+			// Build Location URL under the matched location path
+			std::string url = _matchedLocPath;
+			if (url.empty()) url = "/";
+			if (url[url.size()-1] != '/') url += "/";
+			url += name;
+			if (existed) {
+				std::ostringstream body;
+				body << "Uploaded " << total << " bytes to " << url << " (overwritten)\n";
+				returnOKResponse(body.str(), "text/plain; charset=utf-8");
+				return 1;
+			} else {
+				returnCreatedResponse(url, total);
+				return 1;
+			}
 		}
-		std::string full = join_path_simple(_uploadStore, name);
-		bool existed = false;
-		struct stat st;
-		if (::stat(full.c_str(), &st) == 0)
-			existed = S_ISREG(st.st_mode);
-		FILE *f = std::fopen(full.c_str(), "wb");
-		if (!f) {
-			returnHttpResponse(HttpStatusCode::InternalServerError);
-			return 1;
-		}
-		size_t total = 0;
-		const char *p = _bodyBuf.data();
-		size_t left = _bodyBuf.size();
-		while (left > 0) {
-			size_t w = std::fwrite(p + total, 1, left, f);
-			if (w == 0) break;
-			total += w;
-			left -= w;
-		}
-		std::fclose(f);
-		if (total != _bodyBuf.size()) {
-			returnHttpResponse(HttpStatusCode::InternalServerError);
-			return 1;
-		}
-		// Build Location URL under the matched location path
-		std::string url = _matchedLocPath;
-		if (url.empty()) url = "/";
-		if (url[url.size()-1] != '/') url += "/";
-		url += name;
-		if (existed) {
-			std::ostringstream body;
-			body << "Uploaded " << total << " bytes to " << url << " (overwritten)\n";
-			returnOKResponse(body.str(), "text/plain; charset=utf-8");
-			return 1;
-		} else {
-			returnCreatedResponse(url, total);
-			return 1;
+		else {
+			std::string	full = join_path_simple(_uploadStore, name);
+			std::string	url = _matchedLocPath;
+			if (url.empty()) url = "/";
+			if (url[url.size() - 1] != '/') url += "/";
+			url += name;
+			long	sizeBytes = 0;
+			struct stat	st;
+			if (::stat(full.c_str(), &st) == 0) sizeBytes = static_cast<long>(st.st_size);
+			if (existed) {
+				std::ostringstream	body;
+				body << "Uploaded " << sizeBytes << " bytes to " << url << " (overwritten)\n";
+				returnOKResponse(body.str(), "text/plain; charset=utf-8");
+				return 1;
+			}
+			else {
+				returnCreatedResponse(url, sizeBytes);
+				return 1;
+			}
 		}
 	} else {
 		LOG_WARNF("post complete: upload_store is empty — returning placeholder 200 (no file write)");
@@ -616,6 +761,10 @@ void	Connection::selectVhost(const HttpRequest &req) {
 bool	Connection::deleteMethod(const std::string &effRoot, const HttpRequest &req) {
 	// Determine base directory for deletion
 	std::string base = !_uploadStore.empty() ? _uploadStore : effRoot;
+	if (base.empty()) {
+		returnHttpResponse(HttpStatusCode::NotFound);
+		return true;
+	}
 	std::string target = normalize_target_simple(req.target);
 	std::string suffix;
 	if (!_matchedLocPath.empty() && target.size() >= _matchedLocPath.size() && target.compare(0, _matchedLocPath.size(), _matchedLocPath) == 0) {
@@ -628,14 +777,38 @@ bool	Connection::deleteMethod(const std::string &effRoot, const HttpRequest &req
 		returnHttpResponse(HttpStatusCode::NotFound);
 		return true;
 	}
-	std::string full = join_path_simple(base, name);
+
+	for (size_t i = 0; i < name.size(); i++) {
+		char	c = name[i];
+		if ((c == '/' || c == '\\') || (c == '.' && i + 1 < name.size() && name[i + 1] == '.')) {
+			returnHttpResponse(HttpStatusCode::NotFound);
+			return true;
+		}
+	}
+
+	std::string full;
+	if (!_uploadStore.empty()) {
+		full = join_path_simple(base, name);
+	}
+	else {
+		std::string	rel = _matchedLocPath;
+		if (!rel.empty() && rel[0] == '/') rel.erase(0, 1);
+		if (!suffix.empty() && suffix[0] == '/') suffix.erase(0, 1);
+		if (!rel.empty() && rel[rel.size() - 1] != '/') rel += '/';
+		rel += suffix;
+		if (!rel.empty() && rel[0] == '/') rel.erase(0, 1);
+		full = join_path_simple(base, rel);
+	}
+
 	LOG_INFOF("delete: target path %s", full.c_str());
 	std::cout << "[trace] delete: target path " << full << std::endl;
+
 	struct stat st;
 	if (::stat(full.c_str(), &st) != 0 || !S_ISREG(st.st_mode)) {
 		returnHttpResponse(HttpStatusCode::NotFound);
 		return true;
 	}
+
 	if (::unlink(full.c_str()) == 0) {
 		returnHttpResponse(HttpStatusCode::NoContent);
 	} else {

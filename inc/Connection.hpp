@@ -119,7 +119,8 @@ private:
 	std::string	_matchedLocPath;
 	std::string	_uploadStore;
 
-	int	uploadAndRespond();
+	bool saveMultipart(const std::string &content_type, std::string &outName, std::string &err, bool &existed);
+	int		uploadAndRespond();
 
 	int		handleFixedBodyChunk(const char *buf, ssize_t n);
 	void	selectVhost(const HttpRequest &req);
@@ -142,7 +143,7 @@ private:
 	void	returnHttpResponse(const HttpStatusCode::e &status_code, const std::string &allow);
 	void	returnHttpResponse(const HttpRequest &req, const ReturnDir &dir, const Location *loc);
 	void returnCreatedResponse(const std::string &location, const size_t sizeBytes);
-	void returnOKResponse(const std::string &body, const std::string &content_type);
+	void returnOKResponse(std::string body, std::string content_type);
 
 	bool	handle(const std::string &root, const std::vector<std::string> &indexList, const HttpRequest &req, bool isHead,
 				   bool autoindex, HttpResponse &outResp, const Location *loc, std::string &err);
