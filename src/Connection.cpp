@@ -102,7 +102,6 @@ bool	Connection::handle(const std::string &root, const std::vector<std::string> 
 	std::string clean = sanitize(req.target);
 	std::string path = join_path(root, clean);
 	std::string	lpath = loc ? loc->getPath() : "/";
-	std::string	url = ((loc && !loc->getRoot().empty()) ? lpath + clean : clean);
 
 	bool isDir = false;
 	if (!file_exists(path, &isDir)) {
@@ -131,7 +130,7 @@ bool	Connection::handle(const std::string &root, const std::vector<std::string> 
 			}
 			bool		deleteMethod = (loc && loc->findMethod("DELETE") != std::string::npos);
 			std::string body;
-			if (!generate_autoindex_tree(path, url, body, deleteMethod)) {
+			if (!generate_autoindex_tree(path, clean, body, deleteMethod)) {
 				err = "autoindex generation failed";
 				return false;
 			}
@@ -221,7 +220,7 @@ std::string Connection::errorPageSetup(const HttpStatusCode::e &status_code, std
 	const std::map<int, std::string>			err_pages = _srv->getErrorPages();
 	std::map<int, std::string>::const_iterator	it = err_pages.find(statusCodeToInt(status_code));
 	if (it != err_pages.end()) {
-		std::string	error_page_path = _srv->getRoot() + it->second;
+		std::string	error_page_path = join_path_simple(_srv->getRoot(), it->second);
 		std::string	error_body_content;
 		read_file(error_page_path, error_body_content);
 		if (!error_body_content.empty()) {

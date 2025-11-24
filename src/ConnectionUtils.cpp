@@ -20,7 +20,11 @@ bool read_file(const std::string &path, std::string &out) {
 }
 
 std::string join_path(const std::string &a, const std::string &b) {
-	if (a.empty()) return b;
+	if (a.empty()) {
+		if (b.empty()) return std::string(".");
+		if (b[0] == '/') return std::string(".") + b;
+		return std::string("./") + b;
+	}
 	if (a[a.size()-1] == '/') return a + (b.size() && b[0] == '/' ? b.substr(1) : b);
 	return a + "/" + (b.size() && b[0] == '/' ? b.substr(1) : b);
 }
@@ -162,7 +166,11 @@ std::string safe_filename(const std::string &s) {
 }
 
 std::string join_path_simple(const std::string &a, const std::string &b) {
-	if (a.empty()) return b;
+	if (a.empty()) {
+		if (b.empty()) return std::string(".");
+		if (b[0] == '/') return std::string(".") + b;
+		return std::string("./") + b;
+	}
 	if (a[a.size()-1] == '/') return a + (b.size() && b[0] == '/' ? b.substr(1) : b);
 	return a + "/" + (b.size() && b[0] == '/' ? b.substr(1) : b);
 }

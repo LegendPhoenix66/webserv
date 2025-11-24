@@ -93,7 +93,7 @@ uint32_t ServerConfig::getHost() const {
 }
 
 std::string ServerConfig::getRoot() const {
-	return root;
+	return !root.empty() ? root : std::string("./");
 }
 
 std::vector<std::string> ServerConfig::getIndex() const {
