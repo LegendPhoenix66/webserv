@@ -138,7 +138,7 @@ private:
 	void closeFd();
 	std::string getMimeType(const std::string &path, const bool autoindex);
 	std::string errorPageSetup(const HttpStatusCode::e &status_code, std::string &content_type, bool fallback);
-	void	returnHttpResponse(const HttpStatusCode::e &status_code, const Location loc);
+	void	returnOtherResponse(const HttpStatusCode::e &status_code, const std::string &location);
 	void	returnHttpResponse(const HttpStatusCode::e &status_code);
 	void	returnHttpResponse(const HttpStatusCode::e &status_code, const std::string &allow);
 	void	returnHttpResponse(const HttpRequest &req, const ReturnDir &dir, const Location *loc);

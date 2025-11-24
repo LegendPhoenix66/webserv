@@ -53,7 +53,7 @@ std::string html_escape(const std::string &s) {
 	return o;
 }
 
-bool	generate_autoindex_tree(const std::string &fsPath, const std::string &urlPath, std::string &body) {
+bool	generate_autoindex_tree(const std::string &fsPath, const std::string &urlPath, std::string &body, bool deleteMethod) {
 	DIR *dir = opendir(fsPath.c_str());
 	if (!dir) return false;
 
@@ -98,7 +98,13 @@ bool	generate_autoindex_tree(const std::string &fsPath, const std::string &urlPa
 
 		oss << "<li style=\"padding:.2rem 0\">" << (isDir ? "[DIR]  " : "[FILE] ");
 		oss << "<a href=\"" << html_escape(href + (isDir ? "/" : "")) << "\">";
-		oss << html_escape(entries[i] + (isDir ? "/" : "")) << "</a>\n";
+		oss << html_escape(entries[i] + (isDir ? "/" : "")) << "</a>";
+		if (!isDir && deleteMethod) {
+			std::string	delHref = href;
+			delHref += (delHref.find('?') != std::string::npos) ? "&__method=DELETE" : "?__method=DELETE";
+			oss << " <a href=\"" << html_escape(delHref) << "\">[DELETE]</a>";
+		}
+		oss << "\n";
 	}
 
 	oss << "</li>\n</body></html>\n";

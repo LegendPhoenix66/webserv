@@ -129,8 +129,9 @@ bool	Connection::handle(const std::string &root, const std::vector<std::string> 
 				err = "index not found";
 				return false;
 			}
+			bool		deleteMethod = (loc && loc->findMethod("DELETE") != std::string::npos);
 			std::string body;
-			if (!generate_autoindex_tree(path, url, body)) {
+			if (!generate_autoindex_tree(path, url, body, deleteMethod)) {
 				err = "autoindex generation failed";
 				return false;
 			}
@@ -268,14 +269,13 @@ void	Connection::returnHttpResponse(const HttpStatusCode::e &status_code) {
 	_t_write_start = now_ms();
 }
 
-void	Connection::returnHttpResponse(const HttpStatusCode::e &status_code, const Location loc) {
-	ReturnDir		returnDir = loc.getReturnDir();
+void	Connection::returnOtherResponse(const HttpStatusCode::e &status_code, const std::string &location) {
 	HttpResponse	resp(status_code);
 	std::string		content_type = "text/html; charset=UTF=8";
 
-	if (!returnDir.url.empty())
-		resp.setHeader("Location", returnDir.url);
-	std::string body = errorPageSetup(status_code, content_type, true);
+	if (!location.empty())
+		resp.setHeader("Location", location);
+	std::string body = errorPageSetup(status_code, content_type, false);
 	resp.setHeader("Content-Type", content_type);
 	resp.setBody(body);
 	std::ostringstream	oss;
@@ -810,7 +810,19 @@ bool	Connection::deleteMethod(const std::string &effRoot, const HttpRequest &req
 	}
 
 	if (::unlink(full.c_str()) == 0) {
-		returnHttpResponse(HttpStatusCode::NoContent);
+		if (req.method == "DELETE")
+			returnHttpResponse(HttpStatusCode::NoContent);
+		else {
+			std::string	rel = req.target;
+			if (rel.empty()) rel = "/";
+			if (rel[rel.size() - 1] != '/') rel += "/";
+			if (rel.size() > 1) {
+				std::string::size_type p = rel.find_last_of('/', rel.size() - 2);
+				if (p == std::string::npos) rel = "/";
+				else rel.erase(p + 1);
+			}
+			returnOtherResponse(HttpStatusCode::SeeOther, rel);
+		}
 	} else {
 		returnHttpResponse(HttpStatusCode::InternalServerError);
 	}
@@ -1039,6 +1051,16 @@ bool Connection::onReadable() {
 			_locCgiPath = (loc && !loc->getCgiPath().empty()) ? loc->getCgiPath() : std::string();
 			_effRootForRequest = effRoot;
 
+			if (isGet) {
+				if (loc && loc->findMethod("DELETE") != std::string::npos) {
+					if (req.target.find("__method=DELETE") != std::string::npos) {
+						HttpRequest	adj = req;
+						std::string::size_type	query = adj.target.find('?');
+						if (query != std::string::npos) adj.target.erase(query);
+						return deleteMethod(effRoot, adj);
+					}
+				}
+			}
 			if (isDelete) {
 				return deleteMethod(effRoot, req);
 			}
