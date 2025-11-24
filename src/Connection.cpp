@@ -835,7 +835,7 @@ bool	Connection::getMethod(const HttpRequest &req, const Location *loc, std::str
 	std::string err;
 	// If a location overrides root, strip the matched prefix from the URL before resolving
 	HttpRequest adj = req;
-	if (loc && !loc->getPath().empty()) {
+	if (loc && !loc->getPath().empty() && !effAutoindex) {
 		std::string norm = normalize_target_simple(req.target);
 		std::string	lpath = loc->getPath();
 		if (!lpath.empty() && lpath[lpath.size() - 1] != '/')
