@@ -14,11 +14,19 @@
 #include <dirent.h>
 #include <sstream>
 
+struct DirCmp {
+	std::string	fsPath;
+	DirCmp(const std::string &p) : fsPath(p) {}
+
+	bool	operator()(const std::string &a, const std::string &b) const;
+};
+
 bool		file_exists(const std::string &path, bool *isDir);
 bool		read_file(const std::string &path, std::string &out);
 std::string	join_path(const std::string &a, const std::string &b);
 std::string	sanitize(const std::string &target);
 std::string	html_escape(const std::string &s);
+bool		dirCmp(const std::string &a, const std::string &b);
 bool		generate_autoindex_tree(const std::string &fsPath, const std::string &urlPath, std::string &body, bool deleteMethod);
 std::string	peer_of(int fd);
 std::string	normalize_target_simple(const std::string &t);

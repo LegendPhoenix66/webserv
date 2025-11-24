@@ -57,6 +57,17 @@ std::string html_escape(const std::string &s) {
 	return o;
 }
 
+bool	DirCmp::operator()(const std::string &a, const std::string &b) const {
+	std::string	fullA = join_path_simple(fsPath, a);
+	std::string	fullB = join_path_simple(fsPath, b);
+	bool	isDirA = false;
+	bool	isDirB = false;
+	file_exists(fullA, &isDirA);
+	file_exists(fullB, &isDirB);
+	if (isDirA != isDirB) return isDirA;
+	return a < b;
+}
+
 bool	generate_autoindex_tree(const std::string &fsPath, const std::string &urlPath, std::string &body, bool deleteMethod) {
 	DIR *dir = opendir(fsPath.c_str());
 	if (!dir) return false;
@@ -76,7 +87,7 @@ bool	generate_autoindex_tree(const std::string &fsPath, const std::string &urlPa
 	}
 	closedir(dir);
 
-	std::sort(entries.begin(), entries.end());
+	std::sort(entries.begin(), entries.end(), DirCmp(fsPath));
 
 	if (urlPath != "/" && !urlPath.empty()) {
 		std::string parentPath = urlPath;
