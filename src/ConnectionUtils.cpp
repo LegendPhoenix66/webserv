@@ -32,15 +32,30 @@ std::string join_path(const std::string &a, const std::string &b) {
 std::string sanitize(const std::string &target) {
 	// Ensure leading '/'; prevent ".." segments; collapse multiple '/'
 	std::string out;
-	out.reserve(target.size());
+	std::string::size_type	end = target.find_first_of("?#");
+	if (end == std::string::npos) end = target.size();
+	out.reserve(end + 1);
+
 	if (target.empty() || target[0] != '/') out.push_back('/');
-	for (size_t i = 0; i < target.size(); ++i) {
+	for (std::string::size_type i = 0; i < end; i++) {
 		char c = target[i];
 		if (c == '\\') c = '/';
+		if (!out.empty() && out[out.size() - 1] == '/' && c == '/') continue;
 		out.push_back(c);
 	}
-	// Simple traversal prevention
-	if (out.find("..") != std::string::npos) return "/"; // fallback to root
+	if (out.empty() || out[0] != '/') out.insert(out.begin(), '/');
+
+	std::string::size_type	pos = 0;
+	if (out.size() > 0 && out[0] == '/') pos = 1;
+	while (pos <= out.size()) {
+		std::string::size_type	next = out.find('/', pos);
+		std::string::size_type	segLen;
+		segLen = (next == std::string::npos) ? out.size() - pos : next - pos;
+		if (segLen == 2 && pos + 1 < out.size() && out[pos] == '.' && out[pos + 1] == '.')
+			return std::string("/");
+		if (next == std::string::npos) break;
+		pos = next + 1;
+	}
 	return out;
 }
 

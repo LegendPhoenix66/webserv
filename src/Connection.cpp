@@ -101,7 +101,6 @@ bool	Connection::handle(const std::string &root, const std::vector<std::string> 
 						   bool autoindex, HttpResponse &outResp, const Location *loc, std::string &err) {
 	std::string clean = sanitize(req.target);
 	std::string path = join_path(root, clean);
-	std::string	lpath = loc ? loc->getPath() : "/";
 
 	bool isDir = false;
 	if (!file_exists(path, &isDir)) {
@@ -846,6 +845,32 @@ bool	Connection::getMethod(const HttpRequest &req, const Location *loc, std::str
 			adj.target = suffix;
 			LOG_INFOF("static resolve: stripped prefix '%s' → '%s' under root '%s'", lpath.c_str(), adj.target.c_str(), effRoot.c_str());
 			std::cout << "[trace] static resolve: strip '" << lpath << "' → '" << adj.target << "' under root '" << effRoot << "'" << std::endl;
+		}
+	}
+	std::string	validIndex;
+	for (size_t i = 0; i < effIndex.size(); i++) {
+		std::string idx = join_path(effRoot, effIndex[i]);
+		bool isDir = false;
+		if (file_exists(idx, &isDir) && !isDir) {
+			validIndex = idx;
+			break;
+		}
+	}
+	if ((effRoot.empty() || effRoot == "./") && !validIndex.empty()) {
+		std::string	path = join_path(effRoot, adj.target);
+		bool	isDir = false;
+		if (!file_exists(path, &isDir) && !isDir) {
+			std::string::size_type	pos = validIndex.find_last_of('/');
+			std::string	tmpRoot;
+			if (pos == std::string::npos)
+				tmpRoot = effRoot;
+			else if (pos == 0)
+				tmpRoot = std::string("/");
+			else
+				tmpRoot = validIndex.substr(0, pos);
+			path = join_path(tmpRoot, adj.target);
+			if (file_exists(path, &isDir) && !isDir)
+				effRoot = tmpRoot;
 		}
 	}
 	if (handle(effRoot, effIndex, adj, isHead, effAutoindex, resp, loc, err)) {
