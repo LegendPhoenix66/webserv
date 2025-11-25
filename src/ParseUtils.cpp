@@ -59,7 +59,9 @@ size_t	findLineEnd(const std::string line) {
 	if (line.empty() || semicolon_pos == std::string::npos)
 		throw InvalidFormat("Missing ';' at end of line.");
 
-	const size_t	comment_pos = line.find('#', semicolon_pos);
+	const size_t	comment_pos = line.find('#');
+	if (comment_pos != std::string::npos && semicolon_pos > comment_pos)
+		throw InvalidFormat("Missing ';' at end of line.");
 	std::string trailing;
 	if (comment_pos != std::string::npos)
 		trailing = line.substr(semicolon_pos + 1, comment_pos - semicolon_pos - 1);

@@ -141,7 +141,7 @@ private:
 	void	returnOtherResponse(const HttpStatusCode::e &status_code, const std::string &location);
 	void	returnHttpResponse(const HttpStatusCode::e &status_code);
 	void	returnHttpResponse(const HttpStatusCode::e &status_code, const std::string &allow);
-	void	returnHttpResponse(const HttpRequest &req, const ReturnDir &dir, const Location *loc);
+	void returnHttpResponse(const ReturnDir &dir);
 	void returnCreatedResponse(const std::string &location, const size_t sizeBytes);
 	void returnOKResponse(std::string body, std::string content_type);
 

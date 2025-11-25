@@ -237,6 +237,7 @@ void	ParseConfig::handleHost(std::istringstream &iss, ServerConfig &config) {
 	std::string value;
 	if (!(iss >> value))
 		throw InvalidFormat("Missing value for host.");
+	if (value == "localhost") value = "127.0.0.1";
 
 	struct addrinfo hints;
 	std::memset(&hints, 0, sizeof(hints));

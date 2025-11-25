@@ -323,19 +323,21 @@ void Connection::returnCreatedResponse(const std::string &location, const size_t
 	_t_write_start = now_ms();
 }
 
-void	Connection::returnHttpResponse(const HttpRequest &req, const ReturnDir &dir, const Location *loc) {
+void Connection::returnHttpResponse(const ReturnDir &dir) {
 	HttpResponse	resp(getStatusCode(dir.code));
-	// Preserve suffix policy (normalize simplistic)
-	std::string target = req.target;
-	if (target.empty() || target[0] != '/') target = std::string("/") + target;
-	for (size_t i = 0; i < target.size(); ++i) if (target[i] == '\\') target[i] = '/';
-	std::string suffix;
-	if (target.size() >= loc->getPath().size() && target.compare(0, loc->getPath().size(), loc->getPath()) == 0) {
-		suffix = target.substr(loc->getPath().size());
+	std::string		body;
+	if (!dir.url.empty()) {
+		resp.setHeader("Location", dir.url);
 	}
-	std::string	dest = loc->getReturnDir().url + suffix;
-	resp.setHeader("Location", dest);
-	resp.setHeader("Content-Length", "0");
+	else {
+		std::string	content_type = "text/html; charset=utf-8";
+		body = errorPageSetup(getStatusCode(dir.code), content_type, true);
+		resp.setHeader("Content-Type", content_type);
+		resp.setBody(body);
+	}
+	std::ostringstream	oss;
+	oss << body.size();
+	resp.setHeader("Content-Length", oss.str());
 	resp.setHeader("Connection", "close");
 	_wbuf = resp.serialize();
 	_status_code = dir.code;
@@ -1019,7 +1021,7 @@ bool Connection::onReadable() {
 
 			// Redirect takes precedence if configured
 			if (loc && loc->hasReturnDir()) {
-				returnHttpResponse(req, loc->getReturnDir(), loc);
+				returnHttpResponse(loc->getReturnDir());
 				return true;
 			}
 
