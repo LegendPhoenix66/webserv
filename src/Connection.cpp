@@ -124,7 +124,7 @@ bool	Connection::handle(const std::string &root, const std::vector<std::string> 
 		(void)file_exists(path, &isDirFinal);
 		if (isDirFinal) {
 			if (!autoindex) {
-				err = "index not found";
+				err = "index denied";
 				return false;
 			}
 			bool		deleteMethod = (loc && loc->findMethod("DELETE") != std::string::npos);
@@ -147,6 +147,7 @@ bool	Connection::handle(const std::string &root, const std::vector<std::string> 
 
 	std::string body;
 	long contentLen = 0;
+	bool	index = !(loc && !loc->getIndex().empty());
 	struct stat st;
 	if (::stat(path.c_str(), &st) == 0) {
 		contentLen = static_cast<long>(st.st_size);
@@ -161,7 +162,7 @@ bool	Connection::handle(const std::string &root, const std::vector<std::string> 
 
 	outResp.setStatus(HttpStatusCode::OK);
 	outResp.setHeader("Connection", "close");
-	outResp.setHeader("Content-Type", getMimeType(path, autoindex));
+	outResp.setHeader("Content-Type", getMimeType(path, index));
 	{
 		std::ostringstream oss; oss << contentLen;
 		outResp.setHeader("Content-Length", oss.str());
@@ -883,6 +884,8 @@ bool	Connection::getMethod(const HttpRequest &req, const Location *loc, std::str
 		// Treat unexpected read/autoindex generation failures as 500; missing files as 404
 		if (err.find("read error:") == 0 || err == "autoindex generation failed") {
 			returnHttpResponse(HttpStatusCode::InternalServerError);
+		} else if (err == "index denied") {
+			returnHttpResponse(HttpStatusCode::Forbidden);
 		} else {
 			returnHttpResponse(HttpStatusCode::NotFound);
 		}
@@ -1017,7 +1020,6 @@ bool Connection::onReadable() {
 			RouteMatch match = _router.match(req.target);
 			const Location *loc = match.loc;
 			_matchedLocPath = loc ? loc->getPath() : std::string();
-			_uploadStore = (loc && !loc->getUploadStore().empty()) ? loc->getUploadStore() : std::string();
 
 			// Redirect takes precedence if configured
 			if (loc && loc->hasReturnDir()) {
@@ -1076,6 +1078,7 @@ bool Connection::onReadable() {
 			_locCgiPass = _cgiEnabled ? loc->getCgiPass() : std::string();
 			_locCgiPath = (loc && !loc->getCgiPath().empty()) ? loc->getCgiPath() : std::string();
 			_effRootForRequest = effRoot;
+			_uploadStore = (loc && !loc->getUploadStore().empty()) ? join_path(effRoot, loc->getUploadStore()) : std::string();
 
 			if (isGet) {
 				if (loc && loc->findMethod("DELETE") != std::string::npos) {
