@@ -19,16 +19,6 @@ bool read_file(const std::string &path, std::string &out) {
 	return true;
 }
 
-std::string join_path(const std::string &a, const std::string &b) {
-	if (a.empty()) {
-		if (b.empty()) return std::string(".");
-		if (b[0] == '/') return std::string(".") + b;
-		return std::string("./") + b;
-	}
-	if (a[a.size()-1] == '/') return a + (b.size() && b[0] == '/' ? b.substr(1) : b);
-	return a + "/" + (b.size() && b[0] == '/' ? b.substr(1) : b);
-}
-
 std::string sanitize(const std::string &target) {
 	// Ensure leading '/'; prevent ".." segments; collapse multiple '/'
 	std::string out;
@@ -191,14 +181,32 @@ std::string safe_filename(const std::string &s) {
 	return out;
 }
 
-std::string join_path_simple(const std::string &a, const std::string &b) {
+std::string join_path(const std::string &a, const std::string &b) {
+	if (!b.empty() && b.find("./") == 0) return b;
 	if (a.empty()) {
 		if (b.empty()) return std::string(".");
-		if (b[0] == '/') return std::string(".") + b;
+		if (b[0] == '/' || b.find("./") == 0) return b;
 		return std::string("./") + b;
 	}
 	if (a[a.size()-1] == '/') return a + (b.size() && b[0] == '/' ? b.substr(1) : b);
 	return a + "/" + (b.size() && b[0] == '/' ? b.substr(1) : b);
+}
+
+std::string join_path_simple(const std::string &a, const std::string &b) {
+	if (a.empty()) {
+		if (b.empty()) return std::string(".");
+		if (b[0] == '/') return b;
+		return std::string("./") + b;
+	}
+	std::string	out = a;
+	if (!out.empty() && out[out.size() - 1] != '/') out += '/';
+	if (!b.empty()) {
+		std::string	nb = b;
+		if (nb[0] == '/') nb.erase(0, 1);
+		out += nb;
+	}
+	if (out.empty()) out = ".";
+	return out;
 }
 
 std::string find_header_icase(const std::map<std::string, std::string> &hdrs, const std::string &name) {

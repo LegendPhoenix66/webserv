@@ -283,7 +283,7 @@ void	ParseConfig::handleListen(std::istringstream &iss, ServerConfig &config)
 
 void	ParseConfig::handleRoot(const std::string var, const std::string line, ServerConfig &config)
 {
-	if (config.getRoot() != "./")
+	if (!config.getRoot().empty())
 		throw InvalidFormat("Duplicate root directive.");
 	std::string	path = extractSinglePath(var, line);
 	config.setRoot(path);

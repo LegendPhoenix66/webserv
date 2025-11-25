@@ -147,7 +147,7 @@ bool	Connection::handle(const std::string &root, const std::vector<std::string> 
 
 	std::string body;
 	long contentLen = 0;
-	bool	index = !(loc && !loc->getIndex().empty());
+	bool	index = indexList.empty();
 	struct stat st;
 	if (::stat(path.c_str(), &st) == 0) {
 		contentLen = static_cast<long>(st.st_size);
@@ -220,7 +220,7 @@ std::string Connection::errorPageSetup(const HttpStatusCode::e &status_code, std
 	const std::map<int, std::string>			err_pages = _srv->getErrorPages();
 	std::map<int, std::string>::const_iterator	it = err_pages.find(statusCodeToInt(status_code));
 	if (it != err_pages.end()) {
-		std::string	error_page_path = join_path_simple(_srv->getRoot(), it->second);
+		std::string	error_page_path = join_path(_srv->getRoot(), it->second);
 		std::string	error_body_content;
 		read_file(error_page_path, error_body_content);
 		if (!error_body_content.empty()) {
@@ -859,7 +859,7 @@ bool	Connection::getMethod(const HttpRequest &req, const Location *loc, std::str
 			break;
 		}
 	}
-	if ((effRoot.empty() || effRoot == "./") && !validIndex.empty()) {
+	if (effRoot.empty() && !validIndex.empty()) {
 		std::string	path = join_path(effRoot, adj.target);
 		bool	isDir = false;
 		if (!file_exists(path, &isDir) && !isDir) {
@@ -1144,7 +1144,7 @@ bool Connection::onWritable() {
 bool Connection::startCgiWith(const std::string &cgiPass, const std::string &cgiPath,
 							  const std::string &effRoot, const HttpRequest &req) {
 	if (cgiPass.empty()) { returnHttpResponse(HttpStatusCode::InternalServerError); return true; }
-	std::string script = cgiPath.empty() ? join_path_simple(effRoot, req.target) : cgiPath;
+	std::string script = cgiPath.empty() ? join_path(effRoot, req.target) : cgiPath;
 
 	int inpipe[2] = { -1, -1 }; int outpipe[2] = { -1, -1 };
 	if (::pipe(inpipe) != 0) { returnHttpResponse(HttpStatusCode::InternalServerError); return true; }
