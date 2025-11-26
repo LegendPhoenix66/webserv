@@ -100,7 +100,7 @@ std::string Connection::getMimeType(const std::string &path, const bool autoinde
 bool	Connection::handle(const std::string &root, const std::vector<std::string> &indexList, const HttpRequest &req, bool isHead,
 						   bool autoindex, HttpResponse &outResp, const Location *loc, std::string &err) {
 	std::string clean = sanitize(req.target);
-	std::string path = join_path(root, clean);
+	std::string path = join_path_relative(root, clean);
 
 	bool isDir = false;
 	if (!file_exists(path, &isDir)) {
@@ -111,7 +111,7 @@ bool	Connection::handle(const std::string &root, const std::vector<std::string> 
 	if (isDir) {
 		// Try index files in order
 		for (size_t i = 0; i < indexList.size(); ++i) {
-			std::string idx = join_path(path, indexList[i]);
+			std::string idx = join_path_relative(path, indexList[i]);
 			bool isDir2 = false;
 			if (file_exists(idx, &isDir2) && !isDir2) {
 				path = idx;
@@ -220,7 +220,7 @@ std::string Connection::errorPageSetup(const HttpStatusCode::e &status_code, std
 	const std::map<int, std::string>			err_pages = _srv->getErrorPages();
 	std::map<int, std::string>::const_iterator	it = err_pages.find(statusCodeToInt(status_code));
 	if (it != err_pages.end()) {
-		std::string	error_page_path = join_path(_srv->getRoot(), it->second);
+		std::string	error_page_path = join_path_relative(_srv->getRoot(), it->second);
 		std::string	error_body_content;
 		read_file(error_page_path, error_body_content);
 		if (!error_body_content.empty()) {
@@ -387,7 +387,7 @@ bool Connection::processChunkedBuffered() {
 				} else {
 					name = safe_filename(name);
 				}
-				std::string full = join_path_simple(_uploadStore, name);
+				std::string full = join_path_relative(_uploadStore, name);
 				bool existed = false; struct stat st; if (::stat(full.c_str(), &st) == 0) existed = S_ISREG(st.st_mode);
 				FILE *f = std::fopen(full.c_str(), "wb");
 				if (!f) {
@@ -653,7 +653,7 @@ int	Connection::uploadAndRespond() {
 			} else {
 				name = safe_filename(name);
 			}
-			std::string full = join_path_simple(_uploadStore, name);
+			std::string full = join_path_relative(_uploadStore, name);
 			struct stat st;
 			if (::stat(full.c_str(), &st) == 0)
 				existed = S_ISREG(st.st_mode);
@@ -692,7 +692,7 @@ int	Connection::uploadAndRespond() {
 			}
 		}
 		else {
-			std::string	full = join_path_simple(_uploadStore, name);
+			std::string	full = join_path_relative(_uploadStore, name);
 			std::string	url = _matchedLocPath;
 			if (url.empty()) url = "/";
 			if (url[url.size() - 1] != '/') url += "/";
@@ -789,7 +789,7 @@ bool	Connection::deleteMethod(const std::string &effRoot, const HttpRequest &req
 
 	std::string full;
 	if (!_uploadStore.empty()) {
-		full = join_path_simple(base, name);
+		full = join_path_relative(base, name);
 	}
 	else {
 		std::string	rel = _matchedLocPath;
@@ -798,7 +798,7 @@ bool	Connection::deleteMethod(const std::string &effRoot, const HttpRequest &req
 		if (!rel.empty() && rel[rel.size() - 1] != '/') rel += '/';
 		rel += suffix;
 		if (!rel.empty() && rel[0] == '/') rel.erase(0, 1);
-		full = join_path_simple(base, rel);
+		full = join_path_relative(base, rel);
 	}
 
 	LOG_INFOF("delete: target path %s", full.c_str());
@@ -852,7 +852,7 @@ bool	Connection::getMethod(const HttpRequest &req, const Location *loc, std::str
 	}
 	std::string	validIndex;
 	for (size_t i = 0; i < effIndex.size(); i++) {
-		std::string idx = join_path(effRoot, effIndex[i]);
+		std::string idx = join_path_relative(effRoot, effIndex[i]);
 		bool isDir = false;
 		if (file_exists(idx, &isDir) && !isDir) {
 			validIndex = idx;
@@ -860,7 +860,7 @@ bool	Connection::getMethod(const HttpRequest &req, const Location *loc, std::str
 		}
 	}
 	if (effRoot.empty() && !validIndex.empty()) {
-		std::string	path = join_path(effRoot, adj.target);
+		std::string	path = join_path_relative(effRoot, adj.target);
 		bool	isDir = false;
 		if (!file_exists(path, &isDir) && !isDir) {
 			std::string::size_type	pos = validIndex.find_last_of('/');
@@ -871,7 +871,7 @@ bool	Connection::getMethod(const HttpRequest &req, const Location *loc, std::str
 				tmpRoot = std::string("/");
 			else
 				tmpRoot = validIndex.substr(0, pos);
-			path = join_path(tmpRoot, adj.target);
+			path = join_path_relative(tmpRoot, adj.target);
 			if (file_exists(path, &isDir) && !isDir)
 				effRoot = tmpRoot;
 		}
@@ -1076,9 +1076,13 @@ bool Connection::onReadable() {
 			if (effectiveLimit < 0 && _srv && _srv->getClientMaxBodySize() > 0) effectiveLimit = (size_t)_srv->getClientMaxBodySize();
 			_cgiEnabled = (loc && !loc->getCgiPass().empty());
 			_locCgiPass = _cgiEnabled ? loc->getCgiPass() : std::string();
-			_locCgiPath = (loc && !loc->getCgiPath().empty()) ? loc->getCgiPath() : std::string();
+			_locCgiPath = (loc && !loc->getCgiPath().empty()) ? join_path_absolute(effRoot, loc->getCgiPath()) : std::string();
 			_effRootForRequest = effRoot;
-			_uploadStore = (loc && !loc->getUploadStore().empty()) ? join_path(effRoot, loc->getUploadStore()) : std::string();
+			_uploadStore = (loc && !loc->getUploadStore().empty()) ? join_path_absolute(effRoot, loc->getUploadStore()) : std::string();
+
+			std::string	cgiExt = (loc && !loc->getCgiExt().empty()) ? loc->getCgiExt() : std::string();
+			if (_cgiEnabled && _locCgiPath.empty())
+				_locCgiPath = getFilefromExt(req.target, effRoot, cgiExt);
 
 			if (isGet) {
 				if (loc && loc->findMethod("DELETE") != std::string::npos) {
@@ -1144,7 +1148,7 @@ bool Connection::onWritable() {
 bool Connection::startCgiWith(const std::string &cgiPass, const std::string &cgiPath,
 							  const std::string &effRoot, const HttpRequest &req) {
 	if (cgiPass.empty()) { returnHttpResponse(HttpStatusCode::InternalServerError); return true; }
-	std::string script = cgiPath.empty() ? join_path(effRoot, req.target) : cgiPath;
+	std::string script = cgiPath.empty() ? join_path_relative(effRoot, req.target) : cgiPath;
 
 	int inpipe[2] = { -1, -1 }; int outpipe[2] = { -1, -1 };
 	if (::pipe(inpipe) != 0) { returnHttpResponse(HttpStatusCode::InternalServerError); return true; }

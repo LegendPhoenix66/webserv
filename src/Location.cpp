@@ -7,6 +7,7 @@ Location::Location(const Location &other)
 		  root(other.root),
 		  cgi_pass(other.cgi_pass),
 		  cgi_path(other.cgi_path),
+		  cgi_ext(other.cgi_ext),
 		  index(other.index),
 		  allowed_methods(other.allowed_methods),
 		  return_dir(other.return_dir),
@@ -75,6 +76,7 @@ Location::DirectiveType Location::getDirectiveType(const std::string &var) {
 	if (var == "root") return DIR_ROOT;
 	if (var == "cgi_pass") return DIR_CGI_PASS;
 	if (var == "cgi_path") return DIR_CGI_PATH;
+	if (var == "cgi_ext") return DIR_CGI_EXT;
 	if (var == "index") return DIR_INDEX;
 	if (var == "allowed_methods") return DIR_ALLOWED_METHODS;
 	if (var == "return") return DIR_RETURN;
@@ -111,6 +113,9 @@ void	Location::parseDirective(const std::string &line) {
 			cgi_path = extractSinglePath(var, dir_args);
 			break;
 		}
+		case DIR_CGI_EXT:
+			parseCgiExt(iss);
+			break;
 		case DIR_INDEX:
 			parseIndex(var, dir_args);
 			break;
@@ -145,6 +150,23 @@ void	Location::parseDirective(const std::string &line) {
 		default:
 			throw InvalidFormat("Unknown directive in location block.");
 	}
+}
+
+void	Location::parseCgiExt(std::istringstream &iss) {
+	if (!cgi_ext.empty())
+		throw InvalidFormat("Duplicate cgi_ext directive.");
+	std::string	value;
+
+	if (!(iss >> value))
+		throw InvalidFormat("Missing value for cgi_ext.");
+
+	if (value.size() < 2 || value[0] != '.')
+		throw InvalidFormat("Invalid value for cgi_ext.");
+
+	cgi_ext = value;
+
+	if (iss >> value)
+		throw InvalidFormat("cgi_ext directive requires only one argument.");
 }
 
 void Location::parseReturn(std::istringstream &iss, const std::string var, const std::string line)
@@ -195,24 +217,27 @@ void	Location::parseClientSize(std::istringstream &iss) {
 
 // helper to handle index parsing
 void Location::parseIndex(const std::string var, const std::string line) {
-	if (!this->index.empty())
+	if (!index.empty())
 		throw InvalidFormat("Duplicate index directive.");
-	this->index = extractQuotedArgs(var, line);
+	index = extractQuotedArgs(var, line);
 }
 
 // helper to handle allowed_methods parsing
 void Location::parseAllowedMethods(std::istringstream &iss) {
-	if (!this->allowed_methods.empty())
+	if (!allowed_methods.empty())
 		throw InvalidFormat("Duplicate allowed_methods directive.");
 	std::string value;
 	while (iss >> value)
-		this->allowed_methods.push_back(value);
+		allowed_methods.push_back(value);
+	if (allowed_methods.empty())
+		throw InvalidFormat("allowed_methods directive requires at least one argument.");
 }
 
 void Location::swap(Location &other) {
 	std::swap(this->path, other.path);
 	std::swap(this->root, other.root);
 	std::swap(this->cgi_pass, other.cgi_pass);
+	std::swap(this->cgi_ext, other.cgi_ext);
 	std::swap(this->cgi_path, other.cgi_path);
 	std::swap(this->index, other.index);
 	std::swap(this->allowed_methods, other.allowed_methods);
@@ -236,6 +261,10 @@ std::string Location::getCgiPass() const {
 
 std::string Location::getCgiPath() const {
 	return this->cgi_path;
+}
+
+std::string	Location::getCgiExt() const {
+	return this->cgi_ext;
 }
 
 std::vector<std::string> Location::getIndex() const {

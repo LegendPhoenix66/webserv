@@ -18,6 +18,7 @@ private:
 	std::string					root;
 	std::string					cgi_pass;
 	std::string					cgi_path;
+	std::string					cgi_ext;
 	std::vector<std::string>	index;
 	std::vector<std::string>	allowed_methods;
 	ReturnDir					return_dir;
@@ -30,6 +31,7 @@ private:
 		DIR_ROOT,           /**< The 'root' directive. */
 		DIR_CGI_PASS,       /**< The 'cgi_pass' directive. */
 		DIR_CGI_PATH,       /**< The 'cgi_path' directive. */
+		DIR_CGI_EXT,
 		DIR_INDEX,          /**< The 'index' directive. */
 		DIR_ALLOWED_METHODS,/**< The 'allowed_methods' directive. */
 		DIR_RETURN,         /**< The 'return' directive. */
@@ -48,6 +50,7 @@ private:
 	void	parseAllowedMethods(std::istringstream &iss);
 	void	parseClientSize(std::istringstream &iss);
 	void	parseReturn(std::istringstream &iss, const std::string var, const std::string line);
+	void	parseCgiExt(std::istringstream &iss);
 
 public:
 	Location();
@@ -60,6 +63,7 @@ public:
 	std::string	getRoot() const;
 	std::string	getCgiPass() const;
 	std::string	getCgiPath() const;
+	std::string	getCgiExt() const;
 	std::vector<std::string>	getIndex() const;
 	std::vector<std::string>	getAllowedMethods() const;
 	std::string					getMethod(const std::string method) const;

@@ -63,8 +63,8 @@ std::string html_escape(const std::string &s) {
 }
 
 bool	DirCmp::operator()(const std::string &a, const std::string &b) const {
-	std::string	fullA = join_path_simple(fsPath, a);
-	std::string	fullB = join_path_simple(fsPath, b);
+	std::string	fullA = join_path_relative(fsPath, a);
+	std::string	fullB = join_path_relative(fsPath, b);
 	bool	isDirA = false;
 	bool	isDirB = false;
 	file_exists(fullA, &isDirA);
@@ -108,7 +108,7 @@ bool	generate_autoindex_tree(const std::string &fsPath, const std::string &urlPa
 	}
 
 	for (size_t i = 0; i < entries.size(); i++) {
-		std::string	childPath = join_path(fsPath, entries[i]);
+		std::string	childPath = join_path_relative(fsPath, entries[i]);
 		bool	isDir = false;
 		file_exists(childPath, &isDir);
 
@@ -131,6 +131,22 @@ bool	generate_autoindex_tree(const std::string &fsPath, const std::string &urlPa
 
 	body = oss.str();
 	return true;
+}
+
+std::string	getFilefromExt(const std::string &target, const std::string &root, const std::string &ext) {
+	if (ext.empty()) return std::string();
+
+	std::string	scriptLoc = target;
+	std::string::size_type	qpos = scriptLoc.find('?');
+	if (qpos != std::string::npos) scriptLoc.erase(qpos);
+	std::string	scriptPath = join_path_relative(root, scriptLoc);
+
+	bool	isDir = false;
+	if (!(file_exists(scriptPath, &isDir) && !isDir)) return std::string();
+
+	if (scriptPath.size() > ext.size() && scriptPath.compare(scriptPath.size() - ext.size(), ext.size(), ext) == 0)
+		return scriptPath;
+	return std::string();
 }
 
 std::string peer_of(int fd) {
@@ -181,8 +197,9 @@ std::string safe_filename(const std::string &s) {
 	return out;
 }
 
-std::string join_path(const std::string &a, const std::string &b) {
+std::string join_path_absolute(const std::string &a, const std::string &b) {
 	if (!b.empty() && b.find("./") == 0) return b;
+	if (!b.empty() && b[0] == '/') return b;
 	if (a.empty()) {
 		if (b.empty()) return std::string(".");
 		if (b[0] == '/' || b.find("./") == 0) return b;
@@ -192,7 +209,7 @@ std::string join_path(const std::string &a, const std::string &b) {
 	return a + "/" + (b.size() && b[0] == '/' ? b.substr(1) : b);
 }
 
-std::string join_path_simple(const std::string &a, const std::string &b) {
+std::string join_path_relative(const std::string &a, const std::string &b) {
 	if (a.empty()) {
 		if (b.empty()) return std::string(".");
 		if (b[0] == '/') return b;
@@ -202,6 +219,7 @@ std::string join_path_simple(const std::string &a, const std::string &b) {
 	if (!out.empty() && out[out.size() - 1] != '/') out += '/';
 	if (!b.empty()) {
 		std::string	nb = b;
+		if (nb[0] == '.') nb.erase(0, 1);
 		if (nb[0] == '/') nb.erase(0, 1);
 		out += nb;
 	}
