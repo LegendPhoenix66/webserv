@@ -72,10 +72,11 @@ void Connection::closeCgiPipes() {
 	if (_cgiOut != -1) { ::close(_cgiOut); _cgiOut = -1; }
 }
 
-std::string Connection::getMimeType(const std::string &path, const bool autoindex) {
+std::string Connection::getMimeType(const std::string &path) {
 	std::string				ext;
 	std::string::size_type	dot = path.find_last_of('.');
-	if (dot == std::string::npos)
+	std::string::size_type	slash = path.find_last_of('/');
+	if (dot == std::string::npos || (slash != std::string::npos && dot < slash))
 		ext = "";
 	else {
 		ext = path.substr(dot + 1);
@@ -83,7 +84,6 @@ std::string Connection::getMimeType(const std::string &path, const bool autoinde
 			*it = static_cast<char>(std::tolower(static_cast<unsigned char>(*it)));
 	}
 
-	if (autoindex) return "text/plain; charset=utf-8";
 	if (ext == "html" || ext == "htm") return "text/html; charset=utf-8";
 	if (ext == "css") return "text/css; charset=utf-8";
 	if (ext == "js") return "application/javascript";
@@ -93,7 +93,7 @@ std::string Connection::getMimeType(const std::string &path, const bool autoinde
 	if (ext == "gif") return "image/gif";
 	if (ext == "svg") return "image/svg+xml";
 	if (ext == "ico") return "image/x-icon";
-	if (ext == "txt") return "text/plain; charset=utf-8";
+	if (ext == "txt" || ext.empty()) return "text/plain; charset=utf-8";
 	return "application/octet-stream";
 }
 
@@ -110,13 +110,15 @@ bool	Connection::handle(const std::string &root, const std::vector<std::string> 
 
 	if (isDir) {
 		// Try index files in order
-		for (size_t i = 0; i < indexList.size(); ++i) {
-			std::string idx = join_path_relative(path, indexList[i]);
-			bool isDir2 = false;
-			if (file_exists(idx, &isDir2) && !isDir2) {
-				path = idx;
-				isDir = false;
-				break;
+		if (!autoindex) {
+			for (size_t i = 0; i < indexList.size(); ++i) {
+				std::string idx = join_path_relative(path, indexList[i]);
+				bool isDir2 = false;
+				if (file_exists(idx, &isDir2) && !isDir2) {
+					path = idx;
+					isDir = false;
+					break;
+				}
 			}
 		}
 		// If still directory, maybe autoindex
@@ -147,7 +149,6 @@ bool	Connection::handle(const std::string &root, const std::vector<std::string> 
 
 	std::string body;
 	long contentLen = 0;
-	bool	index = indexList.empty();
 	struct stat st;
 	if (::stat(path.c_str(), &st) == 0) {
 		contentLen = static_cast<long>(st.st_size);
@@ -162,7 +163,7 @@ bool	Connection::handle(const std::string &root, const std::vector<std::string> 
 
 	outResp.setStatus(HttpStatusCode::OK);
 	outResp.setHeader("Connection", "close");
-	outResp.setHeader("Content-Type", getMimeType(path, index));
+	outResp.setHeader("Content-Type", getMimeType(path));
 	{
 		std::ostringstream oss; oss << contentLen;
 		outResp.setHeader("Content-Length", oss.str());
@@ -225,7 +226,7 @@ std::string Connection::errorPageSetup(const HttpStatusCode::e &status_code, std
 		read_file(error_page_path, error_body_content);
 		if (!error_body_content.empty()) {
 			read_file(error_page_path, body);
-			content_type = getMimeType(error_page_path, false);
+			content_type = getMimeType(error_page_path);
 		}
 	}
 	if (body.empty() && fallback) {
@@ -850,6 +851,14 @@ bool	Connection::getMethod(const HttpRequest &req, const Location *loc, std::str
 			std::cout << "[trace] static resolve: strip '" << lpath << "' → '" << adj.target << "' under root '" << effRoot << "'" << std::endl;
 		}
 	}
+
+	bool	download = false;
+	if (req.target.find("__download") != std::string::npos) {
+		download = true;
+		std::string::size_type	q = adj.target.find('?');
+		if (q != std::string::npos) adj.target.erase(q);
+	}
+
 	std::string	validIndex;
 	for (size_t i = 0; i < effIndex.size(); i++) {
 		std::string idx = join_path_relative(effRoot, effIndex[i]);
@@ -877,6 +886,17 @@ bool	Connection::getMethod(const HttpRequest &req, const Location *loc, std::str
 		}
 	}
 	if (handle(effRoot, effIndex, adj, isHead, effAutoindex, resp, loc, err)) {
+		if (download) {
+			std::string	file = adj.target;
+			std::string::size_type	p = file.find_last_of('/');
+			if (p != std::string::npos) file = file.substr(p + 1);
+			if (file.empty()) file = "download";
+			if (adj.target.empty() || adj.target[adj.target.size() - 1] != '/') {
+				std::ostringstream	cd;
+				cd << "attachment; filename=\"" << file << "\"";
+				resp.setHeader("Content-Disposition", cd.str());
+			}
+		}
 		_wbuf = resp.serialize();
 		_status_code = 200;
 		_t_write_start = now_ms();

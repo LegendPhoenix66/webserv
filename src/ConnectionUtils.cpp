@@ -119,6 +119,11 @@ bool	generate_autoindex_tree(const std::string &fsPath, const std::string &urlPa
 		oss << "<li style=\"padding:.2rem 0\">" << (isDir ? "[DIR]  " : "[FILE] ");
 		oss << "<a href=\"" << html_escape(href + (isDir ? "/" : "")) << "\">";
 		oss << html_escape(entries[i] + (isDir ? "/" : "")) << "</a>";
+		if (!isDir) {
+			std::string	dlHref = href;
+			dlHref += (dlHref.find('?') != std::string::npos) ? "&__download=1" : "?__download=1";
+			oss << " <a href=\"" << html_escape(dlHref) << "\">[DOWNLOAD]</a>";
+		}
 		if (!isDir && deleteMethod) {
 			std::string	delHref = href;
 			delHref += (delHref.find('?') != std::string::npos) ? "&__method=DELETE" : "?__method=DELETE";
