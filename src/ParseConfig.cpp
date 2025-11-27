@@ -19,11 +19,11 @@ void ParseConfig::swap(ParseConfig &other) {
 	std::swap(this->configs, other.configs);
 }
 
-ParseConfig::ParseConfig(char *file) {
+ParseConfig::ParseConfig(std::string file) {
 	if (isDirectory(file))
 		throw IsDirectoryError();
 	std::ifstream	fileStream;
-	fileStream.open(file);
+	fileStream.open(file.c_str());
 	if (!fileStream.is_open())
 		throw CouldNotOpenFile();
 	std::vector<std::string>	conf_vec;
@@ -120,13 +120,84 @@ void ParseConfig::parseDirective(std::vector<std::string> &conf_vec, size_t &i, 
 		handleErrorPage(var, dir_args, config);
 	else if (var == "client_max_body_size")
 		handleClientSize(iss, config);
+	else if (var == "max_header_size")
+		handleHeaderSize(iss, config);
+	else if (var == "max_request_size")
+		handleRequestSize(iss, config);
+	else if (var == "server_name")
+		handleServerName(var, dir_args, config);
 	else if (!var.empty())
 		throw InvalidFormat("Unknown directive in server block.");
 }
 
+void	ParseConfig::handleServerName(std::string var, std::string args, ServerConfig &config) {
+	if (!config.getServerName().empty())
+		throw InvalidFormat("Duplicate server_name directive.");
+
+	config.setServerName(extractQuotedArgs(var, args));
+}
+
+void	ParseConfig::handleRequestSize(std::istringstream &iss, ServerConfig &config) {
+	if (config.getMaxHeaderSize() >= 0)
+		throw InvalidFormat("Duplicate max_request_size directive.");
+
+	std::string value_str;
+	if (!(iss >> value_str))
+		throw InvalidFormat("Missing value for max_request_size.");
+
+	char	*endptr;
+	long long value = std::strtoll(value_str.c_str(), &endptr, 10);
+
+	if (endptr == value_str.c_str() || value < 0)
+		throw InvalidFormat("Invalid value for max_request_size.");
+
+	size_t	multiplier = 1;
+	if (*endptr != '\0') {
+		if ((*endptr == 'k' || *endptr == 'K') && *(endptr + 1) == '\0')
+			multiplier *= 1024;
+		else if ((*endptr == 'm' || *endptr == 'M') && *(endptr + 1) == '\0')
+			multiplier *= 1024 * 1024;
+		else
+			throw InvalidFormat("Invalid value for max_request_size.");
+	}
+
+	config.setMaxRequestSize(value * multiplier);
+	if (iss >> value_str)
+		throw InvalidFormat("client_max_body_size directive requires only one argument.");
+}
+
+void	ParseConfig::handleHeaderSize(std::istringstream &iss, ServerConfig &config) {
+	if (config.getMaxHeaderSize() >= 0)
+		throw InvalidFormat("Duplicate max_header_size directive.");
+
+	std::string value_str;
+	if (!(iss >> value_str))
+		throw InvalidFormat("Missing value for max_header_size.");
+
+	char	*endptr;
+	long long value = std::strtoll(value_str.c_str(), &endptr, 10);
+
+	if (endptr == value_str.c_str() || value < 0)
+		throw InvalidFormat("Invalid value for max_header_size.");
+
+	size_t	multiplier = 1;
+	if (*endptr != '\0') {
+		if ((*endptr == 'k' || *endptr == 'K') && *(endptr + 1) == '\0')
+			multiplier *= 1024;
+		else if ((*endptr == 'm' || *endptr == 'M') && *(endptr + 1) == '\0')
+			multiplier *= 1024 * 1024;
+		else
+			throw InvalidFormat("Invalid value for max_header_size.");
+	}
+
+	config.setMaxHeaderSize(value * multiplier);
+	if (iss >> value_str)
+		throw InvalidFormat("client_max_body_size directive requires only one argument.");
+}
+
 void	ParseConfig::handleClientSize(std::istringstream &iss, ServerConfig &config)
 {
-	if (config.getClientMaxBodySize() != 0)
+	if (config.getClientMaxBodySize() >= 0)
 		throw InvalidFormat("Duplicate client_max_body_size directive.");
 
 	std::string value_str;
@@ -149,7 +220,7 @@ void	ParseConfig::handleClientSize(std::istringstream &iss, ServerConfig &config
 			throw InvalidFormat("Invalid value for client_max_body_size.");
 	}
 
-	config.setClientMaxBodySize(static_cast<size_t>(value) * multiplier);
+	config.setClientMaxBodySize(value * multiplier);
 	if (iss >> value_str)
 		throw InvalidFormat("client_max_body_size directive requires only one argument.");
 }
@@ -160,16 +231,13 @@ void	ParseConfig::handleLocation(std::vector<std::string> &conf_vec, size_t &i, 
 	config.addLocationBack(loc);
 }
 
-void	ParseConfig::handleHost(std::istringstream &iss, ServerConfig &config)
-{
+void	ParseConfig::handleHost(std::istringstream &iss, ServerConfig &config) {
 	if (config.getHost())
 		throw InvalidFormat("Duplicate host directive.");
 	std::string value;
 	if (!(iss >> value))
 		throw InvalidFormat("Missing value for host.");
-
-	if (value == "localhost")
-		value = "127.0.0.1";
+	if (value == "localhost") value = "127.0.0.1";
 
 	struct addrinfo hints;
 	std::memset(&hints, 0, sizeof(hints));
@@ -178,13 +246,24 @@ void	ParseConfig::handleHost(std::istringstream &iss, ServerConfig &config)
 
 	struct addrinfo *res = NULL;
 	int	ret = getaddrinfo(value.c_str(), NULL, &hints, &res);
-	if (ret == 0 && res != NULL) {
-		struct sockaddr_in *addr = (struct sockaddr_in *)res->ai_addr;
-		config.setHost(addr->sin_addr.s_addr);
-	}
-	else
+	if (ret != 0 || res == NULL) {
+		if (res) freeaddrinfo(res);
 		throw InvalidFormat("Invalid host address.");
+	}
+	bool	found = false;
+	for (struct addrinfo *rp = res; rp != NULL; rp = rp->ai_next) {
+		if (rp->ai_family == AF_INET && rp->ai_addrlen >= (socklen_t)sizeof(struct sockaddr_in)) {
+			struct sockaddr_in	*addr = (struct sockaddr_in *)rp->ai_addr;
+			config.setHost((uint32_t)ntohl(addr->sin_addr.s_addr));
+			found = true;
+			break;
+		}
+	}
 	freeaddrinfo(res);
+
+	if (!found)
+		throw InvalidFormat("Invalid host address.");
+
 	if (iss >> value)
 		throw InvalidFormat("Host directive requires only one argument.");
 }
@@ -195,7 +274,7 @@ void	ParseConfig::handleListen(std::istringstream &iss, ServerConfig &config)
 		throw InvalidFormat("Duplicate listen directive.");
 
 	int value;
-	if (!(iss >> value) || value < 0 || value > 65535)
+	if (!(iss >> value) || value <= 0 || value > 65535)
 		throw InvalidFormat("Invalid port number.");
 	config.setPort(static_cast<unsigned short>(value));
 	if (iss >> value)

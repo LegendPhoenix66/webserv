@@ -5,13 +5,24 @@ CFILES = main.cpp \
 		ParseConfig.cpp \
 		ServerConfig.cpp \
 		Location.cpp \
-		Server.cpp \
 		HttpStatusCodes.cpp \
 		ParseUtils.cpp \
-		InvalidFormat.cpp
+		InvalidFormat.cpp \
+		Logger.cpp \
+		SignalHandler.cpp \
+		Address.cpp \
+		Socket.cpp \
+		EventLoop.cpp \
+		Connection.cpp \
+		HttpParser.cpp \
+		HttpResponse.cpp \
+		Listener.cpp \
+		Router.cpp \
+		LoopUtils.cpp \
+		ConnectionUtils.cpp
 OFILES = $(addprefix $(OBJ_DIR)/,$(CFILES:.cpp=.o))
 CC = c++
-CFLAGS = -Wall -Werror -Wextra -std=c++98 -g -fsanitize=address
+CFLAGS = -Wall -Werror -Wextra -std=c++98 -g
 
 RED = \033[1;31m
 GREEN = \033[1;32m
@@ -41,6 +52,12 @@ fclean: clean
 	@rm -f $(NAME)
 	@echo "${RED}Deleted executable${RESET} $(NAME)"
 
+asan:
+	@$(MAKE) CFLAGS='-Wall -Werror -Wextra -std=c++98 -g -fsanitize=address -fno-omit-frame-pointer' all
+
+test:
+	@bash tests/mandatory_test.sh
+
 re: fclean $(NAME)
 
-.PHONY: all clean fclean re
+.PHONY: all clean fclean test asan re

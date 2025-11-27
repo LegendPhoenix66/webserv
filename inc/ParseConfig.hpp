@@ -91,6 +91,9 @@ private:
 	 * @throws InvalidFormat if the size is invalid.
 	 */
 	void handleClientSize(std::istringstream &iss, ServerConfig &config);
+	void	handleHeaderSize(std::istringstream &iss, ServerConfig &config);
+	void	handleRequestSize(std::istringstream &iss, ServerConfig &config);
+	void	handleServerName(std::string var, std::string args, ServerConfig &config);
 
 	void handleHost(std::istringstream &iss, ServerConfig &config);
 
@@ -126,7 +129,7 @@ public:
 	 * @throws CouldNotOpenFile if the file cannot be opened.
 	 * @throws InvalidFormat if the configuration is invalid.
 	 */
-	explicit ParseConfig(char *file);
+	explicit ParseConfig(std::string file);
 
 	/**
 	 * @brief Gets the parsed server configuration.

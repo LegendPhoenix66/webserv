@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>site2 — location index (first.html)</title>
+  <link rel="stylesheet" href="styles/shared.css">
+  <link rel="stylesheet" href="styles/style.css">
+</head>
+<body>
+  <header>
+    <h1>Location-specific Index (first.html)</h1>
+    <nav>
+      <a href="/">Home (this page)</a> |
+      <a href="index.html">Main index.html</a> |
+      <a href="/uploads/">Upload</a> |
+      <a href="cgi-bin/">CGI</a> |
+      <a href="/return/">Return</a>
+    </nav>
+  </header>
+  <main>
+    <section>
+      <h2>Welcome</h2>
+      <p>This file is served as the <code>index</code> for the <code>location / { index first.html; }</code> block in the server config.</p>
+      <p>It takes precedence when the location is matched.</p>
+    </section>
+
+    <section class="controls">
+      <h3>File Upload</h3>
+      <p>Uploads are handled on the dedicated upload page. Click the button below to go to <code>/upload</code> and perform file uploads.</p>
+      <a href="/file-upload/" class="button">Go to /file-upload — Upload files</a>
+
+      <h3>CGI Test</h3>
+      <form method="post" action="cgi-bin/echo.py">
+        <label for="cgi-input">Message to echo:</label>
+        <input id="cgi-input" name="message" type="text" value="Hello CGI!" style="padding:.4rem;margin-right:.5rem;">
+        <button type="submit" class="button">Test CGI POST</button>
+      </form>
+      <p style="margin-top:.5rem;"><a href="cgi-bin/echo.py?test=123&foo=bar">Test CGI GET with query string</a></p>
+    </section>
+
+    <section>
+      <h3>Quick links</h3>
+      <ul>
+        <li><a href="index.html">index.html (main index)</a></li>
+        <li><a href="404.html">Custom 404</a></li>
+        <li><a href="50x.html">Server error page</a></li>
+      </ul>
+    </section>
+  </main>
+  <footer>
+    <small>site2 — location-specific index</small>
+  </footer>
+</body>
+</html>
