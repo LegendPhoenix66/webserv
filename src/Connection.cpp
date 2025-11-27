@@ -110,7 +110,7 @@ bool	Connection::handle(const std::string &root, const std::vector<std::string> 
 
 	if (isDir) {
 		// Try index files in order
-		if (!autoindex) {
+		if (!autoindex || (loc && !loc->getIndex().empty())) {
 			for (size_t i = 0; i < indexList.size(); ++i) {
 				std::string idx = join_path_relative(path, indexList[i]);
 				bool isDir2 = false;
@@ -221,7 +221,7 @@ std::string Connection::errorPageSetup(const HttpStatusCode::e &status_code, std
 	const std::map<int, std::string>			err_pages = _srv->getErrorPages();
 	std::map<int, std::string>::const_iterator	it = err_pages.find(statusCodeToInt(status_code));
 	if (it != err_pages.end()) {
-		std::string	error_page_path = join_path_relative(_srv->getRoot(), it->second);
+		std::string	error_page_path = join_path_absolute(_srv->getRoot(), it->second);
 		std::string	error_body_content;
 		read_file(error_page_path, error_body_content);
 		if (!error_body_content.empty()) {

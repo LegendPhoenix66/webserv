@@ -203,7 +203,6 @@ std::string safe_filename(const std::string &s) {
 }
 
 std::string join_path_absolute(const std::string &a, const std::string &b) {
-	if (!b.empty() && b.find("./") == 0) return b;
 	if (!b.empty() && b[0] == '/') return b;
 	if (a.empty()) {
 		if (b.empty()) return std::string(".");
