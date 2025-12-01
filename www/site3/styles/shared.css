@@ -51,3 +51,39 @@ header nav a:hover{
     color: black;
     border-radius: 8px;
 }
+
+.error {
+    text-align: center;
+    padding: 3rem;
+    font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    color: #222;
+    background: #f9fafb;
+    max-width: 720px;
+    margin: 4rem auto;
+    border-radius: 8px;
+    box-shadow: 0 6px 18px rgba(17, 24, 39, 0.06);
+}
+
+.error h1 {
+    font-size: 2.25rem;
+    margin-bottom: 0.5rem;
+    color: #111;
+}
+
+.error p {
+    margin: 0.5rem 0 1.25rem;
+    color: #444;
+}
+
+.error a {
+    display: inline-block;
+    background: #2b6cb0;
+    color: #fff;
+    padding: 0.6rem 1rem;
+    border-radius: 6px;
+    text-decoration: none;
+}
+
+.error a:hover {
+    background: #235a95;
+}

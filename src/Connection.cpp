@@ -1,12 +1,11 @@
 #include "../inc/Connection.hpp"
 
 static const uint64_t IDLE_TIMEOUT_MS = 15000ULL;
-static const uint64_t HEADERS_TIMEOUT_MS = 5000ULL;
 static const uint64_t WRITE_DRAIN_TIMEOUT_MS = 10000ULL;
 
 Connection::Connection(int fd, const std::vector<const ServerConfig*> &group, const std::string &bindKey, EventLoop* loop)
 		: _fd(fd), _closed(false), _group(group), _srv(0), _bindKey(bindKey), _vhostName("-"),_routerSrv(0),
-		  _bodyState(BODY_NONE), _bodyLimit(-1), _clRemaining(0),
+		  _headersDone(false), _bodyState(BODY_NONE), _bodyLimit(-1), _clRemaining(0),
 		  _chunkRemaining(-1), _chunkReadingTrailers(false), _drainAfterResponse(false),
 		  _t_start(now_ms()), _t_last_active(_t_start), _t_headers_start(_t_start), _t_write_start(0),
 		  _bytes_sent(0), _status_code(0), _logged(false), _reqLine("-"), _peer(peer_of(fd)),
@@ -714,7 +713,6 @@ int	Connection::uploadAndRespond() {
 		}
 	} else {
 		LOG_WARNF("post complete: upload_store is empty — returning placeholder 200 (no file write)");
-		std::cout << "[trace] post complete: upload_store is empty — returning placeholder 200 (no file write)" << std::endl;
 		std::ostringstream body;
 		body << "Received " << _bodyBuf.size() << " bytes\n";
 		returnOKResponse(body.str(), "text/plain; charset=utf-8");
@@ -803,7 +801,6 @@ bool	Connection::deleteMethod(const std::string &effRoot, const HttpRequest &req
 	}
 
 	LOG_INFOF("delete: target path %s", full.c_str());
-	std::cout << "[trace] delete: target path " << full << std::endl;
 
 	struct stat st;
 	if (::stat(full.c_str(), &st) != 0 || !S_ISREG(st.st_mode)) {
@@ -848,7 +845,6 @@ bool	Connection::getMethod(const HttpRequest &req, const Location *loc, std::str
 			if (suffix[0] != '/') suffix = std::string("/") + suffix;
 			adj.target = suffix;
 			LOG_INFOF("static resolve: stripped prefix '%s' → '%s' under root '%s'", lpath.c_str(), adj.target.c_str(), effRoot.c_str());
-			std::cout << "[trace] static resolve: strip '" << lpath << "' → '" << adj.target << "' under root '" << effRoot << "'" << std::endl;
 		}
 	}
 

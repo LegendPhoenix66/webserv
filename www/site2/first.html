@@ -14,7 +14,6 @@
       <a href="/">Home (this page)</a> |
       <a href="index.html">Main index.html</a> |
       <a href="/uploads/">Upload</a> |
-      <a href="cgi-bin/">CGI</a> |
       <a href="/return/">Return</a>
     </nav>
   </header>
@@ -36,7 +35,27 @@
         <input id="cgi-input" name="message" type="text" value="Hello CGI!" style="padding:.4rem;margin-right:.5rem;">
         <button type="submit" class="button">Test CGI POST</button>
       </form>
-      <p style="margin-top:.5rem;"><a href="cgi-bin/echo.py?test=123&foo=bar">Test CGI GET with query string</a></p>
+
+        <h3>Calculator (CGI)</h3>
+      <p>Use the form below to calculate with the server-side CGI calculator. The form sends a POST to <code>cgi-bin/addition.py</code>.</p>
+      <form method="post" action="cgi-bin/addition.py" style="margin-bottom:0.8rem;">
+        <label for="x">x:</label>
+        <input id="x" name="x" type="text" value="4" style="width:6rem;padding:.25rem;margin-right:.5rem;">
+        <label for="y">y:</label>
+        <input id="y" name="y" type="text" value="5" style="width:6rem;padding:.25rem;margin-right:.5rem;">
+        <label for="op">op:</label>
+        <select id="op" name="op" style="padding:.25rem;margin-right:.5rem;">
+          <option value="add">add (+)</option>
+          <option value="sub">sub (-)</option>
+          <option value="mul">mul (*)</option>
+          <option value="div">div (/)</option>
+          <option value="mod">mod (%)</option>
+          <option value="pow">pow (^)</option>
+        </select>
+        <button type="submit" class="button">Calculate (POST)</button>
+      </form>
+      <p style="margin-top:.5rem;">Quick GET test: <a id="get-sample" href="cgi-bin/addition.py?x=4&y=5&op=mul">cgi-bin/addition.py?x=4&y=5&op=mul</a></p>
+      <p style="margin-top:.5rem;">Note: results are returned as plain text (use the links or form to view them).</p>
     </section>
 
     <section>
